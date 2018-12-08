@@ -1,0 +1,114 @@
+node {
+  diameter: 50px;
+  color: #A5ABB6;
+  border-color: #9AA1AC;
+  border-width: 2px;
+  text-color-internal: #FFFFFF;
+  font-size: 10px;
+}
+
+relationship {
+  color: #A5ABB6;
+  shaft-width: 1px;
+  font-size: 8px;
+  padding: 3px;
+  text-color-external: #000000;
+  text-color-internal: #FFFFFF;
+  caption: '<type>';
+}
+
+node.Year {
+  color: #FFD86E;
+  border-color: #EDBA39;
+  text-color-internal: #604A0E;
+  caption: '{year}';
+  diameter: 50px;
+}
+
+node.Month {
+  color: #FFD86E;
+  border-color: #EDBA39;
+  text-color-internal: #604A0E;
+  caption: '{month}';
+  diameter: 20px;
+}
+
+node.Day {
+  color: #FFD86E;
+  border-color: #EDBA39;
+  text-color-internal: #604A0E;
+  caption: '{day}';
+  diameter: 20px;
+}
+
+node.RaceType {
+  color: #FFD86E;
+  border-color: #EDBA39;
+  text-color-internal: #604A0E;
+  caption: '{name}';
+}
+
+node.Organization {
+  color: #FF756E;
+  border-color: #E06760;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.Person {
+  color: #68BDF6;
+  border-color: #5CA8DB;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.Race {
+  color: #DE9BF9;
+  border-color: #BF85D6;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.Participant {
+  color: #6DCE9E;
+  border-color: #60B58B;
+  text-color-internal: #FFFFFF;
+  caption: '{points}';
+  diameter: 20px;
+}
+
+node.OrgType {
+  color: #FFD86E;
+  border-color: #EDBA39;
+  text-color-internal: #604A0E;
+  caption: '{name}';
+}
+
+node.Calendar {
+  color: #68BDF6;
+  border-color: #5CA8DB;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.Location {
+  color: #6DCE9E;
+  border-color: #60B58B;
+  text-color-internal: #FFFFFF;
+  caption: '{city}';
+}
+
+node.Test {
+  color: #FB95AF;
+  border-color: #E0849B;
+  text-color-internal: #FFFFFF;
+  caption: '{nid}';
+}
+
+node.MF {
+  color: #FF756E;
+  border-color: #E06760;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+

@@ -1,0 +1,167 @@
+{% macro org_list(organizations) %}
+    <table class="table table-hover">
+        <tr>
+            <th>Datum</th>
+            <th>Naam</th>
+            <th>Plaats</th>
+            <th>Type</th>
+        </tr>
+        {% for row in organizations %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td><a href="{{ url_for('main.race_list', org_id=row.id) }}">{{ row.organization }}</a></td>
+                <td>{{ row.city }}</td>
+                <td>{{ row.type }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+{% endmacro %}
+
+{% macro org_races(races, org_id) %}
+    <table class="table table-hover">
+        <tr>
+            <th>Wedstrijden</th>
+        </tr>
+        {% for rec in races %}
+
+        <tr>
+            <td>
+                <a href="{{ url_for('main.participant_list', race_id=rec['race']['nid']) }}">
+                    {{ rec['race']['racename'] }}
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endmacro %}
+
+{% macro part_row(name, part_id) %}
+    <tr>
+        <td><a href="{{ url_for('main.person_summary', part_id=part_id) }}">{{ name }}</a></td>
+        {% if current_user.is_authenticated %}
+        <td><a href="{{ url_for('main.person_delete', part_id=part_id) }}">Verwijder</a></td>
+        {% endif %}
+    </tr>
+{% endmacro %}
+
+{% macro race_finishers(finishers, race_id) %}
+<h2>Aankomsten</h2>
+    <table class="table table-hover">
+        <tr>
+            <th></th>
+            <th>Naam</th>
+            <th style="text-align:right">Punten</th>
+            {% if current_user.is_authenticated %}
+                <th></th>
+            {% endif %}
+        </tr>
+        {% if finishers is iterable %}
+        {% for (person, part) in finishers %}
+        <tr>
+            <td style="text-align:right">
+                {% if 'pos' in part %}
+                    {{ part.pos }}.
+                {% elif 'rel_pos' in part %}
+                    {{ part.rel_pos }}.
+                {% else %}
+                    {{ loop.index }}.
+                {% endif %}
+            </td>
+            <td>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.participant_edit', part_id=part['nid']) }}">
+            {% endif %}
+                    {{ person['label'] }}
+            {% if current_user.is_authenticated %}
+                </a>
+            {% endif %}
+            </td>
+            <td style="text-align:right">
+                {{ part['points'] }}
+            </td>
+            {% if current_user.is_authenticated %}
+                <td>
+                    <div data-toggle="modal" data-target="#{{ person['nid'] }}">
+                        <img src="/static/button_cancel.png" width="25" height="25">
+                    </div>
+                    <!-- Modal code -->
+                    <div class="modal fade" id="{{ person['nid'] }}" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+                         aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                                    <h3 class="modal-title">OK om te verwijderen?</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Bevestig verwijderen van deelnemer <strong>{{ person['label'] }}</strong>!</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <a href="{{ url_for('main.participant_remove', pers_id=person['nid'], race_id=race_id) }}" class="btn btn-danger" role="button">
+                                        Verwijderen
+                                    </a>
+                                    <a href="{{ url_for('main.participant_add', race_id=race_id) }}" class="btn btn-warning" role="button">
+                                        Annuleer
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        {% endif %}
+    </table>
+{% endmacro %}
+
+{% macro person_list(persons) %}
+    <table class="table table-hover">
+        <tr>
+            <th>Category</th>
+            <th></th>
+            <th>Naam</th>
+            <th>#</th>
+        </tr>
+        {% for person in persons %}
+        <tr>
+            <td>{{ person['category'] }}</td>
+            <td>{{ person['mf'] }}</td>
+            <td><a href="{{ url_for('main.person_summary', pers_id=person['nid']) }}">{{ person['name'] }}</a></td>
+            <td>{{ person["races"] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endmacro %}
+
+{% macro person_races(person, races) %}
+    <table class="table table-hover">
+        <tr>
+            <th></th>
+            <th>Wedstrijd</th>
+            <th>Plaats</th>
+            <th>Type</th>
+            <th>Punten</th>
+        </tr>
+        {% for row in races %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+                <a href="{{ url_for('main.participant_list',  race_id=row.race.nid) }}">
+                    {{ row.race.racename }}
+                </a>
+            </td>
+            <td>
+                {{ row.loc.city }}
+            </td>
+            <td>
+                {{ row.orgtype.name }}
+            </td>
+            <td style="text-align:right">
+                {{ row.part.points }}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endmacro %}

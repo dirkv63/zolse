@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+
+{% block page_content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>Kalender</h1>
+        {{ macros.org_list(organizations) }}
+    </div>
+</div>
+{% endblock %}
+
+{% block sidebar %}
+    {% if current_user.is_authenticated %}
+        <div class="actions">
+            <h3>Acties</h3>
+            <hr>
+            <div class="btn-group-vertical" role="group" aria-label="Actions">
+                <a href="{{ url_for('main.organization_add') }}" class="btn btn-default" role="button">
+                    Organizatie Toevoegen
+                </a>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

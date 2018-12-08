@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "macros.html" as macros %}
+
+{% block page_content %}
+    <div class="row">
+        <h1>{{ org_label }}</h1>
+        <div class="col-md-7">
+            {{ macros.org_races(races, org_id) }}
+        </div>
+        {% if form is defined %}
+            <div class="col-md-5">
+                {% if racename is defined %}
+                    <h3>{{ racename }}</h3>
+                {% else %}
+                    <h3>Nieuwe wedstrijd</h3>
+                {% endif %}
+                {{ wtf.quick_form(form) }}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block sidebar %}
+    {% if current_user.is_authenticated %}
+        <div class="actions">
+            <h3>Acties</h3>
+            <hr>
+            <div class="btn-group-vertical" role="group" aria-label="Actions">
+                <a href="{{ url_for('main.organization_edit', org_id=org_id) }}" class="btn btn-default">
+                    Organizatie aanpassen
+                </a>
+                {% if remove_org is equalto "Yes" %}
+                    <!-- Button trigger modal -->
+                    <button type="button" class="btn btn-default" data-toggle="modal" data-target="#myModal">
+                        Organizatie verwijderen
+                    </button>
+                    <!-- Modal code -->
+                    <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+                         aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                                    <h3 class="modal-title">OK om te verwijderen?</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Bevestig verwijderen van organizatie <strong>{{ org_label }}</strong>!</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <a href="{{ url_for('main.organization_delete', org_id=org_id) }}" class="btn btn-danger" role="button">
+                                        Verwijderen
+                                    </a>
+                                    <a href="{{ url_for('main.race_list', org_id=org_id) }}" class="btn btn-warning" role="button">
+                                        Annuleer
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                <a href="{{ url_for('main.race_add', org_id=org_id) }}" class="btn btn-default">
+                    Wedstrijd toevoegen
+                </a>
+                {% if remove_org is equalto "Yes" %}
+                    <a href="{{ url_for('main.races_default', org_id=org_id) }}" class="btn btn-default">
+                        Default wedstrijden
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

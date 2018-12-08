@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros with context %}
+
+{% block page_content %}
+<div class="row">
+    <div class="col-lg-5">
+        <a href="{{ url_for('main.result_select_cat', mf=mf) }}">
+            <h1>{{ cat }}</h1>
+        </a>
+        <table class="table table-hover">
+            <tr>
+                <th></th>
+                <th>Naam</th>
+                <th>Punten</th>
+                <th>#</th>
+            </tr>
+            {% for row in result_set %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{% if row[2] > 6 %}<b>{% endif %}
+                    <a href="{{ url_for('main.results', mf=mf, cat=cat_nid, person_id=row[3]) }}">
+                        {{ row[0] }}
+                    </a>
+                    {% if row[2] > 6 %}</b>{% endif %}
+                </td>
+                <td>{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% if races is defined %}
+    <div class="col-lg-7">
+        <h1>{{ person['label'] }}</h1>
+        {{ macros.person_races(person, races) }}
+    </div>
+{% endif %}
+</div>
+{% endblock %}

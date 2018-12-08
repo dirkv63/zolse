@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros with context %}
+
+{% block page_content %}
+<div class="row">
+    <div class="col-lg-5">
+        <h1>{{ mf }}</h1>
+        <table class="table table-hover">
+            <tr>
+                <th>Category</th>
+            </tr>
+            {% for row in categories %}
+            <tr>
+                <td>
+                    <a href="{{ url_for('main.results', cat=row[0], mf=mf) }}">
+                        {{ row[1] }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

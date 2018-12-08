@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block page_content %}
+    <div class="row">
+        <div class="col-md-8">
+            <h1>Kalender</h1>
+            {{ macros.org_list(organizations) }}
+        </div>
+        <div class="col-md-4">
+            <h1>Organizatie</h1>
+            {{ wtf.quick_form(form) }}
+        </div>
+    </div>
+{% endblock %}
+
+{% block sidebar %}
+    {% if current_user.is_authenticated %}
+        <div class="actions">
+            <h3>Acties</h3>
+            <hr>
+            <div class="btn-group-vertical" role="group" aria-label="Actions">
+                <a href="{{ url_for('main.location_add') }}" class="btn btn-default">
+                    Locatie toevoegen
+                </a>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

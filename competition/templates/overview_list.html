@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+
+{% block page_content %}
+<div class="row overview">
+    <div class="col-lg-12">
+    <h1>{{ mf }} - Overzicht</h1>
+    <table class="table table-hover table-bordered">
+        <tr>
+            <th rowspan="2">Category</th>
+            <th rowspan="2">Naam</th>
+            <th rowspan="2">Punten</th>
+            <th rowspan="2">#</th>
+            {% for org in org_list %}
+                <th colspan="3">
+                    {{ org.organization }}<br>{{ org.date }}
+                </th>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for org in org_list %}
+                <th>
+                    pos
+                </th>
+                <th>
+                    ptn
+                </th>
+            {% endfor %}
+        </tr>
+
+        {% for row in result_set %}
+        <tr>
+            <td>{{ row[4] }}</td>
+            <td>
+                {% if row[2] > 6 %}<b>{% endif %}
+                    {{ row[0] }}
+                {% if row[2] > 6 %}</b>{% endif %}
+            </td>
+            <td style="white-space:nowrap">{{ row[1] }}</td>
+            <td style="white-space:nowrap">{{ row[2] }}</td>
+            {% for org in org_list %}
+                {% if result4person[row[3]][org.id] is defined %}
+                    {% set race = result4person[row[3]][org.id].race %}
+                    {% set part = result4person[row[3]][org.id].part %}
+                    <td style="white-space:nowrap">
+                        {{ part.pos }}
+                    </td>
+                    <td>
+                        {{ part.points }}
+                    </td>
+                {% else %}
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+</div>
+{% endblock %}

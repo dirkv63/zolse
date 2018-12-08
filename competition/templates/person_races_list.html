@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros with context %}
+
+{% block page_content %}
+    <div class="row">
+        <div class="col-sm-4">
+            <h1>Overzicht</h1>
+            {{ macros.person_list(persons) }}
+        </div>
+        <div class="col-sm-8">
+            <h1>{{ person.label }}</h1>
+            {{ macros.person_races(person, races) }}
+        </div>
+    </div>
+{% endblock %}
+
+{% block sidebar %}
+    {% if current_user.is_authenticated %}
+        <div class="actions">
+            <h3>Acties</h3>
+            <hr>
+            <div class="btn-group-vertical" role="group" aria-label="Actions">
+                <a href="{{ url_for('main.person_edit', pers_id=person.nid) }}" class="btn btn-default" role="button">
+                    {{ person.label }} aanpassen
+                </a>
+            {% if not person.active %}
+                <button type="button" class="btn btn-default" data-toggle="modal" data-target="#myModal">
+                    {{ person.label }} verwijderen
+                </button>
+                <!-- Modal code -->
+                <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+                     aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                                <h3 class="modal-title">OK om te verwijderen?</h3>
+                            </div>
+                            <div class="modal-body">
+                                <p>Bevestig verwijderen van persoon <strong>{{ person.label }}</strong>!</p>
+                            </div>
+                            <div class="modal-footer">
+                                <a href="{{ url_for('main.person_delete', pers_id=person.nid) }}"
+                                   class="btn btn-danger" role="button">
+                                    Verwijderen
+                                </a>
+                                <a href="{{ url_for('main.person_summary', pers_id=person.nid) }}"
+                                   class="btn btn-warning" role="button">
+                                    Annuleer
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

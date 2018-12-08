@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block page_content %}
+<h2>{{ pers_label }}</h2>
+Deelnemer verwijderen van de wedstrijd {{ race_label }}?
+<div class="row">
+    {{ wtf.quick_form(form) }}
+    <p></p>
+    {{ macros.race_finishers(finishers, race_id) }}
+</div>
+{% endblock %}

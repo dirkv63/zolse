@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros with context %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block page_content %}
+    <h1><a href="{{ url_for('main.race_list', org_id=org_id) }}">{{ race_label }}</a></h1>
+    <div class="row">
+        <div class="col-sm-8">
+            {{ macros.race_finishers(finishers, race_id) }}
+        </div>
+    {% if current_user.is_authenticated %}
+        <div class="col-sm-4">
+            <h2>{{ person['label'] }}</h2>
+            {{ wtf.quick_form(form) }}
+        </div>
+    {% endif %}
+    </div>
+{% endblock %}
+
+{% block sidebar %}
+    {% if current_user.is_authenticated %}
+        <div class="actions">
+            <h3>Acties</h3>
+            <hr>
+            <div class="btn-group-vertical" role="group" aria-label="Actions">
+                <a href="{{ url_for('main.race_edit', race_id=race_id, org_id=org_id) }}" class="btn btn-default"
+                   role="button">
+                    Wedstrijdlabel aanpassen
+                </a>
+                {% if finishers is not defined %}
+                    <a href="{{ url_for('main.race_delete', race_id=race_id) }}" class="btn btn-default"
+                   role="button">
+                        Wedstrijd verwijderen
+                    </a>
+                {% endif %}
+
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "layout.html" %}
+
+{% block page_content %}
+<h1>Not Found</h1>
+Message: {{ e }}
+<p><a href="{{ url_for('main.index') }}">Return to home Page</a></p>
+{% endblock %}
