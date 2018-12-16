@@ -1,6 +1,6 @@
 """
 This module consolidates all local configuration for the script, including modulename collection for logfile name
-setup and initializing the config file.
+setup and initializing the config.py file.
 Also other utilities find their home here.
 """
 
@@ -15,10 +15,10 @@ import sys
 
 def init_env(projectname, filename):
     """
-    This function will initialize the environment: Find and return handle to config file and set-up logging.
+    This function will initialize the environment: Find and return handle to config.py file and set-up logging.
     :param projectname: Name that will be used to find ini file in properties subdirectory.
     :param filename: Filename (__file__) of the calling script (for logfile).
-    :return: config handle
+    :return: config.py handle
     """
     projectname = projectname
     modulename = get_modulename(filename)
