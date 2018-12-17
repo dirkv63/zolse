@@ -4,7 +4,7 @@ from competition import create_app, lm
 
 
 # Run Application
-app = create_app(os.getenv("FLASK_CONFIG"))
+app = create_app()
 
 
 @app.shell_context_processor
