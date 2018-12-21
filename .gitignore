@@ -13,4 +13,4 @@
 *.pyc
 properties/*.ini
 data/*
-set_env.*
+.*env

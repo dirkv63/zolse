@@ -3,6 +3,7 @@ This class consolidates functions related to the neo4J datastore.
 """
 
 import logging
+import os
 import sys
 import uuid
 from datetime import datetime, date
@@ -15,45 +16,43 @@ from py2neo.ext.calendar import GregorianCalendar
 
 class NeoStore:
 
-    def __init__(self, **neo4j_params):
+    def __init__(self):
         """
         Method to instantiate the class in an object for the neostore.
 
-        :param neo4j_params: dictionary with Neo4J User, Pwd and Database. If host is not default localhost, it also
-        needs to be defined in the dictionary.
-
         :return: Object to handle neostore commands.
         """
-        self.graph = self.connect2db(**neo4j_params)
+        self.graph = self.connect2db()
         self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
         return
 
     @staticmethod
-    def connect2db(**neo4j_params):
+    def connect2db():
         """
         Internal method to create a database connection. This method is called during object initialization.
+        Database initialization variables need to be set in environment.
 
         :return: Database handle and cursor for the database.
         """
         neo4j_config = {
-            'user': neo4j_params['user'],
-            'password': neo4j_params["password"],
+            'user': os.environ["NEO4J_USER"],
+            'password': os.environ["NEO4J_PWD"]
         }
-        try:
-            host = neo4j_params["host"]
+        if os.environ.get("NEO4J_HOST"):
+            host = os.environ["NEO4J_HOST"]
             neo4j_config['host'] = host
-        except KeyError:
+        else:
             host = "localhost"
         # Connect to Graph
         graph = Graph(**neo4j_config)
         # Check that we are connected to the expected Neo4J Store - to avoid accidents...
         uri = "bolt://{host}:7687/".format(host=host)
         dbname = DBMS(uri).database_name
-        if dbname != neo4j_params['db']:    # pragma: no cover
+        if dbname != os.environ['NEO4J_DB']:    # pragma: no cover
             logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
                           .format(d=dbname, n=neo4j_params['db']))
-            sys.exit(1)
+            raise SystemExit();
         return graph
 
     def clear_locations(self):

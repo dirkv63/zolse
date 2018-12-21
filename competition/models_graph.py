@@ -7,15 +7,7 @@ from flask_login import UserMixin
 from py2neo.types import *
 from werkzeug.security import generate_password_hash, check_password_hash
 
-neo4j_params = dict(
-    user=os.environ.get('Neo4J_User'),
-    password=os.environ.get('Neo4J_Pwd'),
-    db=os.environ.get('Neo4J_Db')
-)
-host=os.environ.get("Neo4J_Host")
-if isinstance(host, str):
-    neo4j_params['host'] = host
-ns = neostore.NeoStore(**neo4j_params)
+ns = neostore.NeoStore()
 
 # Define Node Labels
 racelabel = "Race"
