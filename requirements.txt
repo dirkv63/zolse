@@ -1,0 +1,12 @@
+Flask
+Flask-Bootstrap
+Flask-Login
+Flask-WTF
+Jinja2
+pandas
+psutil
+py2neo==3.1.2
+python-dateutil
+python-dotenv
+Werkzeug
+WTForms

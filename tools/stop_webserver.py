@@ -5,7 +5,7 @@ The purpose is to allow an offline dump of the database for backup purposes
 
 import logging
 import psutil
-from lib import my_env
+from competition.lib import my_env
 
 cfg = my_env.init_env("wolse", __file__)
 cmd = cfg["Process"]["cmd"]

@@ -5,7 +5,7 @@ This script will take a backup of the neo4j database.
 import logging
 import os
 import subprocess as sp
-from lib import my_env
+from competition.lib import my_env
 
 cfg = my_env.init_env("wolse", __file__)
 db = cfg["Graph"]["db"]

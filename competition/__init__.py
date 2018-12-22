@@ -5,7 +5,7 @@ from config import Config
 from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_login import LoginManager
-from lib import my_env
+from competition.lib import my_env
 
 bootstrap = Bootstrap()
 lm = LoginManager()

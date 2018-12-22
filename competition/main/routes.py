@@ -1,7 +1,7 @@
 import competition.models_graph as mg
 # import logging
 # import datetime
-from lib import my_env
+from competition.lib import my_env
 # from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user

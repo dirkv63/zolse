@@ -6,7 +6,7 @@ import argparse
 import logging
 import os
 import subprocess as sp
-from lib import my_env
+from competition.lib import my_env
 
 parser = argparse.ArgumentParser(
     description="Start or stop a neo4j server"
