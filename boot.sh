@@ -3,4 +3,4 @@
 source zolse/bin/activate
 sleep 20
 # flask run
-exec gunicorn -b :5000 --access-logfile - --error-logfile - competition:app
+exec gunicorn -b :5000 --access-logfile - --error-logfile - fromflask:app
