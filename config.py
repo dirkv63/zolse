@@ -1,4 +1,10 @@
 import os
+from dotenv import load_dotenv
+
+# Flask will load .env and .flaskenv, but running from gunicorn will not load, so add here to be sure.
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
+load_dotenv(os.path.join(basedir, '.flaskenv'))
 # Be careful: Variable names need to be UPPERCASE
 
 
