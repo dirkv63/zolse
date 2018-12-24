@@ -16,7 +16,8 @@ RUN apk add --no-cache --virtual .build-deps gcc musl-dev linux-headers alpine-s
 RUN python -m venv zolse
 RUN zolse/bin/pip install --upgrade pip
 RUN zolse/bin/pip install -r requirements.txt
-# RUN zolse/bin/pip install gunicorn
+RUN zolse/bin/pip install gunicorn
+RUN apk del .build-deps gcc musl-dev linux-headers alpine-sdk
 
 COPY competition competition
 COPY zolse.py config.py boot.sh .env .flaskenv ./
