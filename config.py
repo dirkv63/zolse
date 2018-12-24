@@ -17,5 +17,5 @@ class Config(object):
     NEO4J_DB = os.environ["NEO4J_DB"]
     if os.environ.get("WTF_CSR_ENABLED"):
         WTF_CSRF_ENABLED = os.environ["WTF_CSR_ENABLED"]
-    if os.environ.get["SERVER_NAME"]:
+    if os.environ.get("SERVER_NAME"):
         SERVER_NAME = os.environ["SERVER_NAME"]
