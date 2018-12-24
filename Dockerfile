@@ -20,7 +20,7 @@ RUN zolse/bin/pip install gunicorn
 # RUN apk del .build-deps gcc musl-dev linux-headers alpine-sdk
 
 COPY competition competition
-COPY zolse.py config.py boot.sh .env .flaskenv ./
+COPY fromflask.py config.py boot.sh .env .flaskenv ./
 RUN chmod +x boot.sh
 
 RUN chown -R dirk:dirk ./
