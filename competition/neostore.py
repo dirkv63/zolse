@@ -6,12 +6,11 @@ import logging
 import os
 import sys
 import uuid
+from competition.lib.neostructure import *
 from datetime import datetime, date
 from flask import current_app
 from pandas import DataFrame
-from py2neo import Graph, Node, Relationship, NodeSelector
-from py2neo.database import DBMS
-from py2neo.ext.calendar import GregorianCalendar
+from py2neo import Database, Graph, Node, Relationship, NodeMatcher
 
 
 class NeoStore:
@@ -23,8 +22,7 @@ class NeoStore:
         :return: Object to handle neostore commands.
         """
         self.graph = self.connect2db()
-        self.calendar = GregorianCalendar(self.graph)
-        self.selector = NodeSelector(self.graph)
+        self.selector = NodeMatcher(self.graph)
         return
 
     @staticmethod
@@ -42,17 +40,14 @@ class NeoStore:
         if os.environ.get("NEO4J_HOST"):
             host = os.environ["NEO4J_HOST"]
             neo4j_config['host'] = host
-        else:
-            host = "localhost"
+        # Check that Neo4J is running the expected Neo4J Store - to avoid accidents...
+        connected_db = Database(**neo4j_config)
+        if connected_db.config["dbms.active_database"] != os.environ['NEO4J_DB']:
+            logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
+                          .format(d=connected_db.config["dbms.active_database"], n=os.environ['NEO4J_DB']))
+            raise SystemExit()
         # Connect to Graph
         graph = Graph(**neo4j_config)
-        # Check that we are connected to the expected Neo4J Store - to avoid accidents...
-        uri = "bolt://{host}:7687/".format(host=host)
-        dbname = DBMS(uri).database_name
-        if dbname != os.environ['NEO4J_DB']:    # pragma: no cover
-            logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
-                          .format(d=dbname, n=neo4j_params['db']))
-            raise SystemExit();
         return graph
 
     def clear_locations(self):
@@ -82,9 +77,7 @@ class NeoStore:
         solution cause there seems to be no other way to extract the node ID from a node.
 
         :param labels: Labels for the node
-
         :param props: Value dictionary with values for the node.
-
         :return: Node that has been created.
         """
         props['nid'] = str(uuid.uuid4())
@@ -153,10 +146,9 @@ class NeoStore:
         ensure that the node is created if required.
 
         :param ds: datetime.date representation of the date, or Calendar key 'YYYY-MM-DD'.
-
         :return: node associated with the date, of False (ds could not be formatted as a date object).
         """
-        # If date format is string, convert to datetime object
+        # If date format is string, make sure it is a valid date.
         if isinstance(ds, str):
             try:
                 ds = datetime.strptime(ds, '%Y-%m-%d').date()
@@ -164,9 +156,13 @@ class NeoStore:
                 current_app.logger.error("Trying to set date {ds} but got a value error".format(ds=ds))
                 return False
         if isinstance(ds, date):
-            date_node = self.calendar.date(ds.year, ds.month, ds.day).day   # Get Date (day) node
-            # Check if a new node has been created and nid is set
-            self.get_nodes_no_nid()
+            props = dict(
+                key=ds.strftime('%Y-%m-%d')
+            )
+            lbl = lbl_day
+            date_node = self.get_node(lbl, props)
+            if not date_node:
+                date_node = self.create_node(lbl, props)
             return date_node
         else:
             return False
@@ -266,33 +262,30 @@ class NeoStore:
         """
         This method will select a single (or first) node that have labels and properties
 
-        :param labels:
-
-        :param props:
-
+        :param labels: List of labels that are required for node match.
+        :param props: Property dictionary required to match.
         :return: node that fulfills the criteria, or False if there is no node
         """
         nodes = self.get_nodes(*labels, **props)
         if not nodes:
-            current_app.logger.info("Expected 1 node for label {l} and props {p}, found none.".format(l=labels, p=props))
+            current_app.logger.debug("Looking for 1 node for label {lbl} and props {p}, found none."
+                                     .format(lbl=labels, p=props))
             return False
         elif len(nodes) > 1:
-            logging.error("Expected 1 node for label {l} and props {p}, found many {m}."
-                          .format(l=labels, p=props, m=len(nodes)))
+            logging.error("Expected 1 node for label {lbl} and props {p}, found many {m}."
+                          .format(lbl=labels, p=props, m=len(nodes)))
         return nodes[0]
 
     def get_nodes(self, *labels, **props):
         """
         This method will select all nodes that have labels and properties
 
-        :param labels:
-
-        :param props:
-
+        :param labels: List of labels that are required for node match
+        :param props: Property dictionary required to match.
         :return: list of nodes that fulfill the criteria, or False if no nodes are found.
         """
-        nodes = self.selector.select(*labels, **props)
-        nodelist = list(nodes)
+        nodes = self.selector.match(*labels, **props)
+        nodelist = [node for node in nodes]
         if len(nodelist) == 0:
             # No nodes found that fulfil the criteria
             return False
@@ -301,9 +294,10 @@ class NeoStore:
 
     def get_nodes_no_nid(self):
         """
-        This method will select all nodes that have no nid. These should be limited to Calendar nodes. A nid will be
-        added since this is used as unique reference for the node in relations
-        @return: count of number of nodes that have been updated.
+        This method will select all nodes that have no nid. A nid will be added since this is used as unique reference
+        for the node in relations.
+
+        :return: count of number of nodes that have been updated.
         """
         query = "MATCH (n) WHERE NOT EXISTS (n.nid) RETURN id(n) as node_id"
         res = self.graph.run(query)
@@ -702,7 +696,7 @@ class NeoStore:
 
         :return: Node, or False (None) in case the node could not be found.
         """
-        selected = self.selector.select(nid=nid)
+        selected = self.selector.match(nid=nid)
         node = selected.first()
         return node
 

@@ -2,29 +2,13 @@ import datetime
 import os
 from . import lm
 from competition import neostore
+from competition.lib import neostructure
 from flask import current_app
 from flask_login import UserMixin
 from py2neo.types import *
 from werkzeug.security import generate_password_hash, check_password_hash
 
 ns = neostore.NeoStore()
-
-# Define Node Labels
-racelabel = "Race"
-
-# Define Relation Types
-catgroup2cat = "memberOf"
-org2date = "On"
-org2loc = "In"
-org2race = "has"
-org2type = "type"
-part2part = "after"
-part2race = "participates"
-person2category = "inCategory"
-person2mf = "mf"
-person2participant = "is"
-race2category = "forCategory"
-race2mf = "forMF"
 
 # mf_tx translates from man/vrouw (form value to Node name).
 mf_tx = dict(
@@ -840,7 +824,7 @@ class Race:
         race_props = raceconfig["race_props"]
         categorie_nodes = raceconfig["category_nodes"]
         # Create Race Node with attribute name and label
-        self.race_node = ns.create_node(racelabel, **race_props)
+        self.race_node = ns.create_node(lbl_race, **race_props)
         # Add Race Node to Organization
         ns.create_relation(from_node=self.org.get_node(), rel=org2race, to_node=self.race_node)
         # Create link between race node and each category - this should also work for empty category list?

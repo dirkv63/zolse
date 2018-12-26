@@ -4,8 +4,7 @@ Flask-Login
 Flask-WTF
 Jinja2
 pandas
-psutil
-py2neo==3.1.2
+py2neo
 python-dateutil
 python-dotenv
 Werkzeug
