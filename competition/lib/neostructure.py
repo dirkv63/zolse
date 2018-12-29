@@ -1,5 +1,6 @@
 # Nodes
 lbl_day = "Day"
+lbl_location = "Location"
 lbl_race = "Race"
 
 # Relations

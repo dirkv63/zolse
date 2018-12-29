@@ -1,39 +1,41 @@
 """
-This procedure will test the neostore functionality.
+This procedure will test the neostore functionality. No Flask Application items are required.
 """
 
 import os
 import unittest
-from competition import create_app
 from competition import neostore
+from competition.lib.neostructure import *
+from dotenv import load_dotenv
+from py2neo.data import Node
 
-# Import py2neo to test on class types
-# from py2neo import Node
+basedir = os.path.abspath(os.path.dirname(__file__))
+# Move up from tests directory
+appdir = os.path.dirname(basedir)
+load_dotenv(os.path.join(appdir, '.env'))
+
 
 # @unittest.skip("Focus on Coverage")
 class TestNeoStore(unittest.TestCase):
 
     def setUp(self):
         # Initialize Environment
-        self.app = create_app('testing')
-        self.app_ctx = self.app.app_context()
-        self.app_ctx.push()
-        os.environ['Neo4J_User'] = self.app.config.get('NEO4J_USER')
-        os.environ['Neo4J_Pwd'] = self.app.config.get('NEO4J_PWD')
-        os.environ['Neo4J_Db'] = self.app.config.get('NEO4J_DB')
-
-        neo4j_params = dict(
-            user=os.environ.get('Neo4J_User'),
-            password=os.environ.get('Neo4J_Pwd'),
-            db=os.environ.get('Neo4J_Db')
-        )
-        # self.ns = models_graph.ns()
-        self.ns = neostore.NeoStore(**neo4j_params)
+        self.ns = neostore.NeoStore()
         self.ns.init_graph()
 #       my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
 
-    def tearDown(self):
-        self.app_ctx.pop()
+    def test_clear_locations(self):
+        # Create a location not connected to anything else.
+        lbl = lbl_location
+        city_name = "Hillesheim"
+        props = dict(city=city_name)
+        loc_node = self.ns.create_node(lbl, **props)
+        self.assertTrue(isinstance(loc_node, Node))
+        self.assertEqual(loc_node["city"], city_name)
+        # Clear locations not connected to anything else
+        self.ns.clear_locations()
+        loc_node = self.ns.get_node(lbl, **props)
+        self.assertFalse(loc_node)
 
     def test_remove_relation(self):
         nr_nodes = self.ns.get_nodes()
@@ -112,10 +114,87 @@ class TestNeoStore(unittest.TestCase):
         nr = len(self.ns.get_nodes(label))
         self.assertEqual(nr, 1)
 
-    def test_get_category_nodes(self):
-        res = self.ns.get_category_nodes()
-        for rec in res:
-            print(rec['cat']["name"])
+    def test_get_endnode(self):
+        # First check that I can get a single end node for normal usage.
+        lbl = "Person"
+        my_name = "Dirk Vermeylen"
+        props = dict(name=my_name)
+        start_node = self.ns.get_node(lbl, **props)
+        self.assertTrue(isinstance(start_node, Node))
+        self.assertEqual(start_node["name"], my_name)
+        rel_type = person2category
+        end_node = self.ns.get_endnode(start_node, rel_type)
+        self.assertTrue(isinstance(end_node, Node))
+        self.assertEqual(end_node["name"], "Masters +50")
+        # Check I get multiple results if relation type is not specified
+        end_node = self.ns.get_endnode(start_node)
+        self.assertTrue(isinstance(end_node, Node))
+        # I also get multiple relations for relation type "is"
+        rel_type = person2participant
+        end_node = self.ns.get_endnode(start_node, rel_type)
+        self.assertTrue(isinstance(end_node, Node))
+        # No return on invalid relation
+        rel_type = "DoesNotExist"
+        end_node = self.ns.get_endnode(start_node, rel_type)
+        self.assertFalse(end_node)
+        # No return on invalid Node
+        start_node = "DoesNotExist"
+        end_node = self.ns.get_endnode(start_node, rel_type)
+        self.assertFalse(end_node)
+
+    def test_get_endnodes(self):
+        # First check that I can get a single end node.
+        lbl = "Person"
+        my_name = "Dirk Vermeylen"
+        props = dict(name=my_name)
+        start_node = self.ns.get_node(lbl, **props)
+        self.assertTrue(isinstance(start_node, Node))
+        self.assertEqual(start_node["name"], my_name)
+        rel_type = person2category
+        end_nodes = self.ns.get_endnodes(start_node, rel_type)
+        self.assertEqual(len(end_nodes), 1)
+        self.assertTrue(isinstance(end_nodes[0], Node))
+        self.assertEqual(end_nodes[0]["name"], "Masters +50")
+        # Check I get multiple results if relation type is not specified
+        end_nodes = self.ns.get_endnodes(start_node)
+        self.assertTrue(len(end_nodes) > 1)
+        # I also get multiple relations for relation type "is"
+        rel_type = person2participant
+        end_nodes = self.ns.get_endnodes(start_node, rel_type)
+        self.assertTrue(len(end_nodes) > 1)
+        # No return on invalid relation
+        rel_type = "DoesNotExist"
+        end_nodes = self.ns.get_endnodes(start_node, rel_type)
+        self.assertFalse(end_nodes)
+        # No return on invalid Node
+        start_node = "DoesNotExist"
+        end_nodes = self.ns.get_endnodes(start_node, rel_type)
+        self.assertFalse(end_nodes)
+
+    def test_get_startnode(self):
+        # First check that I can get a single start node for normal usage.
+        lbl = "Location"
+        my_name = "Mol"
+        props = dict(city=my_name)
+        end_node = self.ns.get_node(lbl, **props)
+        self.assertTrue(isinstance(end_node, Node))
+        self.assertEqual(end_node["city"], my_name)
+        rel_type = org2loc
+        start_node = self.ns.get_startnode(end_node, rel_type)
+        self.assertTrue(isinstance(start_node, Node))
+        self.assertEqual(start_node["name"], "Cross Cup")
+        # Check I get no failure if relation type is not specified
+        start_node = self.ns.get_startnode(end_node)
+        self.assertTrue(isinstance(start_node, Node))
+        # No return on invalid relation
+        rel_type = "DoesNotExist"
+        start_node = self.ns.get_startnode(end_node, rel_type)
+        self.assertFalse(start_node)
+        # No return on invalid Node
+        end_node = "DoesNotExist"
+        start_node = self.ns.get_startnode(end_node, rel_type)
+        self.assertFalse(start_node)
+
 
 if __name__ == "__main__":
     unittest.main()

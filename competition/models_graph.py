@@ -117,13 +117,9 @@ class Participant:
         When a participant is added or deleted, then the points for the race will be recalculated.
 
         :param part_id: nid of the participant
-
         :param race_id: nid of the race
-
         :param person_id: nid of the person
-
         :param prev_person_id: nid of the previous arrival in the race.
-
         :return: Participant object with participant node and nid, race nid and person nid are set.
         """
         # Todo: rework classes so that objects are kept, not nids - replace race_nid with race_obj, ...
@@ -272,6 +268,7 @@ class Participant:
         """
         This method will set the properties for the node. The calculated properties (points, rel_pos, ...) will be
         collected from the participant node and added to the list of properties that are set by the user.
+
         :param props: list of user properties for the participant node.
         :return:
         """
@@ -1121,10 +1118,10 @@ def get_org_id(race_id):
     This method will return the organization ID for a Race ID: Organization has Race.
 
     :param race_id: Node ID of the race.
-
     :return: Node ID of the organization.
     """
-    org_id = ns.get_start_node(end_node_id=race_id, rel_type="has")
+    race_node = ns.node(race_id)
+    org_id = ns.get_startnode(end_node=race_node, rel_type="has")
     return org_id
 
 
