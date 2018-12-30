@@ -249,7 +249,7 @@ class NeoStore:
         query = "MATCH (n:Location) RETURN n ORDER BY n.city"
         cursor = self.graph.run(query)
         while cursor.forward():
-            rec = cursor.current()
+            rec = cursor.current
             res.append(rec["n"])
         return res
 
@@ -472,16 +472,23 @@ class NeoStore:
         res = self.graph.data(query, mf=mf, cat=cat, orgtype=orgtype)
         return DataFrame(res)
 
+    def get_query(self, query):
+        """
+        This method accepts a Cypher query as parameter, runs the query and returns the result as a cursor.
+
+        :param query: Cypher Query to run
+        :return: Result of the Cypher Query as a cursor
+        """
+        return self.graph.run(query)
+
     def get_race_list(self, org_id):
         """
         This function will get an organization nid and return the Races associated with the Organization.
-        The races will be returned as a list of dictionaries with fields race (racename), type (racetype) and nid of the
-        race.
+        The races will be returned as a list of dictionaries with fields race node and mf node.
 
         :param org_id: nid of the Organization.
-
-        :return: List of dictionaries with race, category and mf nodes sorted on category and mf, or empty list which
-        evaluates to False.
+        :return: List of dictionaries with race and mf nodes sorted on category and mf, or empty list which evaluates to
+        False.
         """
         query = """
             MATCH (org:Organization)-[:has]->(race:Race)-[:forMF]->(mf:MF)
@@ -493,7 +500,7 @@ class NeoStore:
         # Convert result set in an array of nodes
         res_arr = []
         while res.forward():
-            rec = res.current()
+            rec = res.current
             race_nodes = dict(
                 race=rec["race"],
                 mf=rec["mf"]
@@ -503,13 +510,12 @@ class NeoStore:
 
     def get_race4person(self, person_id):
         """
-        This method will get a list of participant information for a  person, sorted on date. The information will be
+        This method will get a list of participant information for a person, sorted on date. The information will be
         provided in a list of dictionaries. The dictionary values are the corresponding node dictionaries.
 
         :param person_id:
-
-        :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
-        sequence.
+        :return: list of Participant (part),race, date, organization (org) and orgtype and Location (loc) Node
+        dictionaries in date sequence.
         """
         race4person = []
         query = """
@@ -523,7 +529,7 @@ class NeoStore:
         """.format(pers_id=person_id)
         cursor = self.graph.run(query)
         while cursor.forward():
-            rec = cursor.current()
+            rec = cursor.current
             res_dict = dict(part=dict(rec['part']),
                             race=dict(rec['race']),
                             date=dict(rec['day']),
@@ -830,12 +836,11 @@ def nodelist_from_cursor(cursor):
     a query where the cypher return argument is a single node. The function will return the list of unique nodes.
 
     :param cursor: Result of a query with single node per result line.
-
     :return: list of unique nodes, or empty list if there are no nodes.
     """
     node_list = set()
     while cursor.forward():
-        current = cursor.current()
+        current = cursor.current
         (node, ) = current.values()
         node_list.add(node)
     return list(node_list)

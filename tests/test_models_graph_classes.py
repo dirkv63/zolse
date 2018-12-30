@@ -4,10 +4,14 @@ This procedure will test the classes of the models_graph.
 
 import datetime
 import unittest
-from competition import create_app
-# Create app before import models_graph. Environment settings for Neo4J are required before import.
-app = create_app('testing')
+from competition import create_app, neostore
 from competition import models_graph as mg
+from config import Config
+
+
+class TestConfig(Config):
+    TESTING = True
+
 
 # @unittest.skip("Focus on Coverage")
 class TestModelGraphClass(unittest.TestCase):
@@ -15,12 +19,12 @@ class TestModelGraphClass(unittest.TestCase):
     def setUp(self):
         # Initialize Environment
         # Todo: Review why I need to push / pull contexts in setUp - TearDown.
-        self.app_ctx = app.app_context()
+        self.app = create_app(TestConfig)
+        self.app_ctx = self.app.app_context()
         self.app_ctx.push()
-        self.ns = mg.get_ns()
-        # self.ns = neostore.NeoStore(**neo4j_params)
-        self.ns.init_graph()
-#       my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
+        self.ns = neostore.NeoStore()
+        # self.ns.init_graph()
+#       # my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
 
     def tearDown(self):
         self.app_ctx.pop()
@@ -58,7 +62,6 @@ class TestModelGraphClass(unittest.TestCase):
         mg.organization_delete(org_id=org_nid)
         self.assertFalse(mg.get_location(loc_nid), "Location is removed as part of Organization removal")
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()))
-
 
     def test_organization_edit(self):
         nr_nodes = len(self.ns.get_nodes())
@@ -141,6 +144,7 @@ class TestModelGraphClass(unittest.TestCase):
         mg.race_delete(rc.get_node()['nid'])
         mg.organization_delete(org_id=org_nid)
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()))
+
 
 if __name__ == "__main__":
     unittest.main()

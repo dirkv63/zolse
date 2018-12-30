@@ -1,6 +1,9 @@
 # Nodes
 lbl_day = "Day"
 lbl_location = "Location"
+lbl_mf = "MF"
+lbl_organization = "Organization"
+lbl_person = "Person"
 lbl_race = "Race"
 
 # Relations
