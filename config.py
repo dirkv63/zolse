@@ -19,3 +19,7 @@ class Config(object):
         WTF_CSRF_ENABLED = os.environ["WTF_CSR_ENABLED"]
     if os.environ.get("SERVER_NAME"):
         SERVER_NAME = os.environ["SERVER_NAME"]
+
+
+class TestConfig(Config):
+    TESTING = True

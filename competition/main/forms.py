@@ -6,7 +6,7 @@ import wtforms.validators as wtv
 
 
 class LocationAdd(Form):
-    location = StringField('Stad/Gemeente: ', validators=[wtv.required(), wtv.Length(max=24)])
+    location = StringField('Stad/Gemeente: ', validators=[wtv.InputRequired(), wtv.Length(max=24)])
     ref = HiddenField()
     submit = SubmitField('OK')
 

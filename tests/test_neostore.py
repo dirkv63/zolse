@@ -4,15 +4,10 @@ This procedure will test the neostore functionality. No Flask Application items 
 
 import os
 import unittest
-from competition import neostore
+from competition import create_app, neostore
 from competition.lib.neostructure import *
-from dotenv import load_dotenv
+from config import TestConfig
 from py2neo.data import Node
-
-basedir = os.path.abspath(os.path.dirname(__file__))
-# Move up from tests directory
-appdir = os.path.dirname(basedir)
-load_dotenv(os.path.join(appdir, '.env'))
 
 
 # @unittest.skip("Focus on Coverage")
@@ -20,9 +15,15 @@ class TestNeoStore(unittest.TestCase):
 
     def setUp(self):
         # Initialize Environment
+        self.app = create_app(TestConfig)
+        self.app_ctx = self.app.app_context()
+        self.app_ctx.push()
         self.ns = neostore.NeoStore()
-        self.ns.init_graph()
-#       my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
+        # self.ns.init_graph()
+        # my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
+
+    def tearDown(self):
+        self.app_ctx.pop()
 
     def test_clear_locations(self):
         # Create a location not connected to anything else.

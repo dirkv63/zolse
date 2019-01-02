@@ -125,6 +125,7 @@ def init_loghandler(scriptname, logdir, loglevel):
 def datestr2date(datestr):
     """
     This method will convert datestring to date type. Datestring must be of the form YYYY-MM-DD
+
     :param datestr: Datestring to be converted
     :return: Date in datetime object type, or False if not successful
     """

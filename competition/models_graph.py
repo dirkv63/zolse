@@ -1,6 +1,7 @@
 import datetime
 from . import lm
 from competition import neostore
+from competition.lib import my_env
 from competition.lib.neostructure import *
 from flask import current_app
 from flask_login import UserMixin
@@ -459,9 +460,11 @@ class Person:
         :return: Category Node, or False if person not set to category.
         """
         cat_node = ns.get_endnode(start_node=self.person_node, rel_type=person2category)
+        # current_app.logger.info("Category node: {cn}".format(cn=cat_node))
         if isinstance(cat_node, Node):
             return cat_node
         else:
+            current_app.logger.info(type(cat_node))
             return False
 
     def active(self):
@@ -553,7 +556,6 @@ class Organization:
 
         :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
          org_type. Datestamp needs to be of the form 'YYYY-MM-DD'. if org_type True then deelname otherwise Wedstrijd.
-
         :return: True if the organization has been registered, False if it existed already.
         """
         # Create the Organization node.
@@ -620,16 +622,14 @@ class Organization:
         """
         This method will return the label of the Organization. (Organization name, city and date). Assumption is that
         the organization has been set already.
-        :return:
+
+        :return: Label
         """
         org_name = self.org_node["name"]
         city = self.get_location()["city"]
         ds = self.get_date()
-        label = "{org_name} ({city}, {day:02d}-{month:02d}-{year})".format(org_name=org_name,
-                                                                           city=city,
-                                                                           day=ds["day"],
-                                                                           month=ds["month"],
-                                                                           year=ds["year"])
+        ds_obj = my_env.datestr2date(ds["key"])
+        label = "{org_name} ({city}, {date})".format(org_name=org_name, city=city, date=ds_obj.strftime("%d-%m-%Y"))
         return label
 
     def get_location(self):
@@ -674,7 +674,6 @@ class Organization:
 
         :param org_id: NID of the organization. Optional. If not specified, then the node will be returned. If set, then
         the organization node is set.
-
         :return: Organization node.
         """
         if org_id:
@@ -708,7 +707,6 @@ class Organization:
         Organization Node must be available for this method.
 
         :param ds: Datestamp in datetime.date format
-
         :return:
         """
         curr_ds_node = self.get_date()
@@ -1317,26 +1315,26 @@ def person_list():
     Return the list of persons as person objects.
 
     :return: List of persons objects. Each person is represented as a dictionary with person nid, name, category,
-    category sequence (cat_seq), mf and number of races. The list is sorted on Category, MF and name.
+    category sequence (cat_seq), mf and number of races (races). The list is sorted on Category, MF and name.
     """
     res = ns.get_nodes('Person')
     person_arr = []
     for node in res:
-        person = Person(person_id=node["nid"])
-        cat_node = person.get_category()
-        if cat_node:
+        person_obj = Person(person_id=node["nid"])
+        cat_node = person_obj.get_category()
+        if isinstance(cat_node, Node):
             category = cat_node["name"]
             cat_seq = cat_node["seq"]
         else:
-            category = "Not defined"
+            category = def_not_defined
             cat_seq = 100000
         person_dict = dict(
-            nid=person.get_node()["nid"],
-            name=person.get_name(),
+            nid=person_obj.get_node()["nid"],
+            name=person_obj.get_name(),
             category=category,
             cat_seq=cat_seq,
-            mf=person.get_mf()["name"],
-            races=len(person.get_races4person())
+            mf=person_obj.get_mf()["name"],
+            races=len(person_obj.get_races4person())
         )
         person_arr.append(person_dict)
     persons_sorted = sorted(person_arr, key=lambda x: (x["cat_seq"], x["mf"], x["name"]))

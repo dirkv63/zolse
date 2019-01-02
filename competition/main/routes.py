@@ -1,7 +1,8 @@
-import competition.models_graph as mg
+# import competition.models_graph as mg
 # import logging
 # import datetime
 from competition.lib import my_env
+from competition import models_graph as mg
 # from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
@@ -120,6 +121,8 @@ def person_edit(pers_id):
 @main.route('/person/list')
 def person_list():
     persons = mg.person_list()
+    for person in persons:
+        current_app.logger.info(person)
     return render_template('person_list.html', persons=persons)
 
 

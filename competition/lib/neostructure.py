@@ -19,3 +19,6 @@ person2mf = "mf"
 person2participant = "is"
 race2category = "forCategory"
 race2mf = "forMF"
+
+# Definitions
+def_not_defined = "Not defined"
