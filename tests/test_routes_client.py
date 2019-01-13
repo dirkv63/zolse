@@ -1,5 +1,6 @@
 import unittest
-from competition import create_app, models_graph as mg
+from competition import create_app
+from competition.lib import models_graph as mg
 
 
 class UserModelTestCase(unittest.TestCase):

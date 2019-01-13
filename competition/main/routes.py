@@ -1,8 +1,7 @@
 # import competition.models_graph as mg
 # import logging
 # import datetime
-from competition.lib import my_env
-from competition import models_graph as mg
+from competition.lib import my_env, models_graph as mg
 # from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
@@ -59,9 +58,9 @@ def location_add():
             loc = form.location.data
             ref = form.ref.data
             if mg.Location(loc).add():
-                flash("{l} toegevoegd als locatie".format(l=loc), "success")
+                flash("{lbl} toegevoegd als locatie".format(lbl=loc), "success")
             else:
-                flash("{l} bestaaat reeds".format(l=loc), "warning")
+                flash("{lbl} bestaaat reeds".format(lbl=loc), "warning")
         else:
             flash("Form did not validate on submit, how did this happen?", "error")
         return redirect(ref or url_for('main.index'))
@@ -74,29 +73,21 @@ def person_add(person_id=None):
         if person_id:
             person = mg.Person(person_id=person_id)
             mf = person.get_mf_value()
-            if person.get_category():
-                cat_nid = person.get_category()["nid"]
-                form = PersonAdd(mf=mf, category=cat_nid)
-            else:
-                form = PersonAdd(mf=mf)
+            form = PersonAdd(mf=mf)
             form.name.data = person.get_name()
         else:
             form = PersonAdd()
-        form.category.choices = mg.get_category_list()
         persons = mg.person_list()
         return render_template('person_add.html', form=form, persons=persons)
     else:
         # request.method == "POST":
         form = PersonAdd()
-        # if form.validate_on_submit(): Doesn't work with SelectField
         person_dict = dict(
             name=form.name.data,
             mf=form.mf.data,
-            category=form.category.data
         )
         if person_id:
             # This is from person edit function
-            # current_app.logger.debug("Person Dictionary: {person_dict}".format(person_dict=person_dict))
             person = mg.Person(person_id=person_id)
             person.edit(**person_dict)
         else:
@@ -306,7 +297,6 @@ def race_add(org_id, race_id=None):
     else:
         # Get Form.
         race_add_attribs = mg.get_race_list_attribs(org_id)
-        form.category.choices = mg.get_category_list()
         if race_id:
             race = mg.Race(race_id=race_id)
             form.name.data = race.get_name()
@@ -526,7 +516,7 @@ def result_select_cat(mf):
 @main.route('/result/<mf>/<cat>/', methods=['GET'])
 @main.route('/result/<mf>/<cat>/<person_id>')
 def results(mf, cat, person_id=None):
-    result_set = mg.results_for_category(mf=mf, cat=cat)
+    result_set = mg.results_for_mf(mf=mf, cat=cat)
     cat_name = mg.get_category_name(cat)
     param_dict = dict(
         result_set=result_set,
@@ -541,6 +531,7 @@ def results(mf, cat, person_id=None):
         param_dict["races"] = races
         param_dict["person"] = person_dict
     return render_template("result_list.html", **param_dict)
+
 
 @main.route('/overview/<mf>', methods=['GET'])
 def overview(mf):

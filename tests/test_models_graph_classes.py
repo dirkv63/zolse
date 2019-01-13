@@ -4,8 +4,8 @@ This procedure will test the classes of the models_graph.
 
 import datetime
 import unittest
-from competition import create_app, neostore
-from competition import models_graph as mg
+from competition import create_app
+from competition.lib import neostore, models_graph as mg
 from competition.lib.neostructure import *
 from config import TestConfig
 from py2neo.data import Node

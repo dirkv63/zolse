@@ -1,7 +1,6 @@
 import datetime
-from . import lm
-from competition import neostore
-from competition.lib import my_env
+from competition import lm
+from competition.lib import my_env, neostore
 from competition.lib.neostructure import *
 from flask import current_app
 from flask_login import UserMixin
@@ -20,9 +19,6 @@ mf_tx_inv = {y: x for x, y in mf_tx.items()}
 
 # Calculate points
 points_per_deelname = 20
-bonus_pk = 3
-bonus_bk = 5
-bonus_mbk = -10
 
 
 class User(UserMixin):
@@ -366,7 +362,7 @@ class Person:
         Attempt to add the participant with name 'name'. The name must be unique. Person object is set to current
         participant. Name is set in this procedure, ID is set in the find procedure.
 
-        :param props: Properties (in dict) for the person. Name, mf and category are mandatory.
+        :param props: Properties (in dict) for the person. Name, mf are mandatory.
         :return: True, if registered. False otherwise.
         """
         if self.find(props["name"]):
@@ -380,7 +376,6 @@ class Person:
             self.person_node = ns.create_node("Person", **person_props)
             # Link to MF
             link_mf(props["mf"], self.person_node, person2mf)
-            self.set_category(props["category"])
             return True
 
     def edit(self, **props):
@@ -388,8 +383,8 @@ class Person:
         This method will update an existing person node. A check is done to guarantee that the name is not duplicated
         to an existing name on another node. Modified properties will be updated and removed properties will be deleted.
 
-        :param props: New set of properties (name, mf (boolean) and category(nid)) for the node
-        :return: True - in case node is rewritten successfully.
+        :param props: New set of properties (name, mf (boolean) for the node)
+        :return: True - in case node is rewrite successfully.
         """
         # Name change?
         cn = self.get_name()
@@ -401,7 +396,6 @@ class Person:
             else:
                 self.set_name(props["name"])
         link_mf(props["mf"], self.person_node, person2mf)
-        self.set_category(props["category"])
         return True
 
     def get_name(self):
@@ -453,20 +447,6 @@ class Person:
             self.person_node = ns.node(person_id)
         return self.person_node
 
-    def get_category(self):
-        """
-        This method will get the category node for the person.
-
-        :return: Category Node, or False if person not set to category.
-        """
-        cat_node = ns.get_endnode(start_node=self.person_node, rel_type=person2category)
-        # current_app.logger.info("Category node: {cn}".format(cn=cat_node))
-        if isinstance(cat_node, Node):
-            return cat_node
-        else:
-            current_app.logger.info(type(cat_node))
-            return False
-
     def active(self):
         """
         This method will check if a person is active. For now, this means that a person has 'participates' links.
@@ -506,29 +486,6 @@ class Person:
             props["name"] = name
             ns.node_update(**props)
             return True
-
-    def set_category(self, cat_nid):
-        """
-        This method will set the person in the Category specified by the cat_nid. The assumption is that cat_nid is the
-        nid of a category.
-        In case the person is already assigned to this category, nothing will be done.
-
-        :param cat_nid:
-        :return: True
-        """
-        current_cat_node = self.get_category()
-        if isinstance(current_cat_node, Node):
-            if current_cat_node["nid"] == cat_nid:
-                # OK, person assigned to required category already
-                return
-            else:
-                # Change category for person by removing Category first
-                ns.remove_relation_node(start_node=self.person_node, end_node=current_cat_node,
-                                        rel_type=person2category)
-        # No category for person (anymore), add person to category
-        cat_node = ns.node(cat_nid)
-        ns.create_relation(from_node=self.person_node, to_node=cat_node, rel=person2category)
-        return True
 
 
 class Organization:
@@ -798,27 +755,20 @@ class Race:
     def add(self, **props):
         """
         This method will add the race to this organization. This is done by creating a race graph object, consisting of
-        a race node, link to mf and optional links to the categories.
+        a race node, link to mf.
         Note that check on duplicate races is not done. If a duplicate race is defined, then the user will see it in the
         list and can remove it again.
 
-        :param props: Dictionary with race properties, including name (optional), categorylist (optional), mf and short
-        (for korte cross). Name or categorylist or short (korte cross) is mandatory.
+        :param props: Dictionary with race properties, including name (optional), mf. Name is mandatory.
         :return: racename
         """
         raceconfig = race_config(**props)
         race_props = raceconfig["race_props"]
-        categorie_nodes = raceconfig["category_nodes"]
         # Create Race Node with attribute name and label
         self.race_node = ns.create_node(lbl_race, **race_props)
         # Add Race Node to Organization
         ns.create_relation(from_node=self.org.get_node(), rel=org2race, to_node=self.race_node)
-        # Create link between race node and each category - this should also work for empty category list?
-        if isinstance(categorie_nodes, list):
-            for categorie_node in categorie_nodes:
-                ns.create_relation(from_node=self.race_node, rel=race2category, to_node=categorie_node)
-        # Categories set, now set the race sequence number
-        self.set_seq()
+        # Set the race sequence number
         link_mf(mf=props["mf"], node=self.race_node, rel=race2mf)
         return self.race_node["racename"]
 
@@ -836,27 +786,12 @@ class Race:
         race_props = raceconfig["race_props"]
         race_props["nid"] = self.race_node["nid"]
         self.race_node = ns.node_update(**race_props)
-        # Rearrange Category links
-        # Get required categories
-        categorie_nodes = raceconfig["category_nodes"]
-        # Get existing categories
-        current_cat_nodes = ns.get_endnodes(start_node=self.race_node, rel_type=race2category)
-        # Add new links
-        add_rels = [node for node in categorie_nodes if node not in current_cat_nodes]
-        for end_node in add_rels:
-            ns.create_relation(from_node=self.race_node, rel=race2category, to_node=end_node)
-        # Remove category links that do no longer exist.
-        remove_rels = [node for node in current_cat_nodes if node not in categorie_nodes]
-        for end_node in remove_rels:
-            ns.remove_relation(start_nid=self.race_node["nid"], end_nid=end_node["nid"], rel_type=race2category)
-        # Categories set, now set the race sequence number
-        self.set_seq()
         link_mf(mf=props["mf"], node=self.race_node, rel=race2mf)
         return self.race_node["racename"]
 
     def calculate_points(self):
         """
-        This method will calculate the points for the race. Races can be of 3 different types: Wedstrijd, korte cross
+        This method will calculate the points for the race. Races can be of 3 different types: Wedstrijd, Nevenwedstrijd
         or deelname.
 
         :return: All participants in the race have the correct points and position.
@@ -864,19 +799,13 @@ class Race:
         race_type = self.get_racetype()
         node_list = ns.get_participant_seq_list(self.race_node["nid"])
         if node_list:
-            cat_cnt = {}
-            cat_lst = self.get_cat_nids()
-            for k in cat_lst:
-                cat_cnt[k] = 0
             cnt = 0
             for part in node_list:
-                cat = get_cat4part(part["nid"])
-                cat_cnt[cat] += 1
                 cnt += 1
                 if race_type == "Wedstrijd":
-                    points = points_race(cat_cnt[cat])
-                elif race_type == "Short":
-                    points = points_short(cnt)
+                    points = points_race(5)
+                elif race_type == "Nevenwedstrijd":
+                    points = points_race(cnt)
                 elif race_type == "Deelname":
                     points = 20
                 else:
@@ -907,17 +836,6 @@ class Race:
         """
         prange_nodes = ns.get_part_range_for_race(race_id=self.race_node["nid"])
         return prange_nodes
-
-    def get_cat_nids(self):
-        """
-        This method will return the nids for the categories in the table. This is to allow to set the selected
-        categories when allowing to modify a race.
-
-        :return: list of category nids for the race.
-        """
-        current_cat_nodes = ns.get_endnodes(start_node=self.race_node, rel_type=race2category)
-        cat_nids = [cat["nid"] for cat in current_cat_nodes]
-        return cat_nids
 
     def get_label(self):
         """
@@ -987,17 +905,6 @@ class Race:
         else:
             return self.org.get_org_type()
 
-    def is_short(self):
-        """
-        This method will respond to short cross query.
-
-        :return: True - this race is a short cross, False (None)- this race is not a short cross.
-        """
-        if self.race_node["short"] == "Yes":
-            return True
-        else:
-            return False
-
     def set_org(self):
         """
         This method will set the organization object for the race.
@@ -1006,19 +913,6 @@ class Race:
         """
         org_node = ns.get_startnode(end_node=self.race_node, rel_type=org2race)
         self.org = Organization(org_id=org_node["nid"])
-        return
-
-    def set_seq(self):
-        """
-        This method will set the sequence of the race. On initialization, this will be the lowest sequence from the
-        associated categories.
-
-        :return:  (nothing, the sequence attribute will have been set for the race.)
-        """
-        seq = ns.get_race_seq(self.race_node["nid"])
-        race_props = ns.node_props(self.race_node["nid"])
-        race_props["seq"] = seq
-        ns.node_update(**race_props)
         return
 
 
@@ -1159,11 +1053,8 @@ def link_mf(mf, node, rel):
     node, the link will be removed and attached to required mf node.
 
     :param mf: mf attribute from web form (man/vrouw)
-
     :param node: Start node for the relation (Person or Race)
-
     :param rel: relation
-
     :return:
     """
     current_app.logger.info("mf: {mf}, rel: {rel}".format(mf=mf, rel=rel))
@@ -1191,7 +1082,6 @@ def get_race_list(org_id):
     This function will return a list of races for an organization ID
 
     :param org_id: nid of the organization
-
     :return: List of races (empty list if there are no races).
     """
     return ns.get_race_list(org_id)
@@ -1217,7 +1107,6 @@ def races4person_org(pers_id):
     value race dictionary.
 
     :param pers_id:
-
     :return: Dictionary with key org_nid and value dictionary of node race attributes for the person. This can be used
     for the Results Overview page.
     """
@@ -1236,32 +1125,20 @@ def race_config(**params):
     This method will calculate the race configuration from params specified.
 
     :param params:
-
-    :return: Dictionary containing race_props (Properties for the race Node) and category_nodes (list of category nodes
-    for the race. The list category nodes can be empty.
+    :return: Dictionary containing race_props (Properties for the race Node).
     """
     race_props = {}
-    categorie_nodes = None
     mf = mf_tx[params['mf']]
-    if params['short']:
-        categorie_nodes = get_cat_short_cross()
-        race_props['racename'] = "Korte Cross - {mf}".format(mf=mf)
-        race_props['short'] = "Yes"
+    if params['name']:
+        race_props['name'] = params['name']
+        # If name is available, I do need to overwrite racename from categories with this one.
+        race_props['racename'] = "{n} - {mf}".format(n=params['name'], mf=mf)
     else:
-        if params['categories']:
-            categories = params['categories']
-            categorie_nodes_uns = [ns.node(nid) for nid in categories]
-            categorie_nodes = sorted(categorie_nodes_uns, key=lambda x: x["seq"])
-            categorie_label_arr = [cat["name"] for cat in categorie_nodes]
-            categorie_label = " - ".join(categorie_label_arr)
-            race_props['racename'] = "{c} - {mf}".format(c=categorie_label, mf=mf)
-        if params['name']:
-            race_props['name'] = params['name']
-            # If name is available, I do need to overwrite racename from categories with this one.
-            race_props['racename'] = "{n} - {mf}".format(n=params['name'], mf=mf)
+        race_props['name'] = "Racename niet gedefinieerd"
+        race_props['racename'] = race_props["name"]
+
     res = dict(
         race_props=race_props,
-        category_nodes=categorie_nodes
     )
     return res
 
@@ -1272,7 +1149,6 @@ def race_delete(race_id=None):
     race.
 
     :param race_id: Node ID of the race to be removed.
-
     :return: True if race is removed, False otherwise.
     """
     race = Race(race_id=race_id)
@@ -1294,7 +1170,6 @@ def races_generate(org_id):
     This method will generate all races (combination of MF and categories) for an organization.
 
     :param org_id: nid of the organization.
-
     :return:
     """
     categories = ns.get_nodes("Category")
@@ -1321,74 +1196,15 @@ def person_list():
     person_arr = []
     for node in res:
         person_obj = Person(person_id=node["nid"])
-        cat_node = person_obj.get_category()
-        if isinstance(cat_node, Node):
-            category = cat_node["name"]
-            cat_seq = cat_node["seq"]
-        else:
-            category = def_not_defined
-            cat_seq = 100000
         person_dict = dict(
             nid=person_obj.get_node()["nid"],
             name=person_obj.get_name(),
-            category=category,
-            cat_seq=cat_seq,
             mf=person_obj.get_mf()["name"],
             races=len(person_obj.get_races4person())
         )
         person_arr.append(person_dict)
-    persons_sorted = sorted(person_arr, key=lambda x: (x["cat_seq"], x["mf"], x["name"]))
+    persons_sorted = sorted(person_arr, key=lambda x: (x["mf"], x["name"]))
     return persons_sorted
-
-
-def get_cat4part(part_nid):
-    """
-    This method will return category nid for the participant.
-
-    :param part_nid: Nid of the participant node.
-
-    :return: Category NID, or False if no category could be found.
-    """
-    return ns.get_cat4part(part_nid)
-
-
-def get_category_list():
-    """
-    This method will return the category list in sequence Young to Old. Category items are returned in list of tuples
-    with nid and category name
-
-    :return: List of tuples containing nid and category name.
-    """
-    return [(catn["nid"], catn["name"]) for catn in ns.get_category_nodes()]
-
-
-def get_category_name(cat_nid):
-    """
-    This method will get category name from a category nid.
-
-    :param cat_nid:
-
-    :return: Category name
-    """
-    params = dict(
-        nid=cat_nid
-    )
-    cat_node = ns.get_node(**params)
-    return cat_node["name"]
-
-
-def get_cat_short_cross():
-    """
-    This method will collect the categories for the short cross.
-
-    :return: Category nodes associated with short cross.
-    """
-    sc_label = "categoryGroup"
-    sc_props = dict(
-        name="Korte Cross"
-    )
-    sc_node = ns.get_node(sc_label, **sc_props)
-    return ns.get_startnodes(end_node=sc_node, rel_type=catgroup2cat)
 
 
 def get_location(nid):
@@ -1397,7 +1213,6 @@ def get_location(nid):
     as creator attribute.
 
     :param nid: nid of the location node, returned by a selection field.
-
     :return: city name of the location node, or False if no location found.
     """
     loc = ns.get_node("Location", nid=nid)
@@ -1423,7 +1238,6 @@ def get_mf_node(prop):
     This method will return the node that corresponds with the selected man/vrouw value.
 
     :param prop: Heren / Dames
-
     :return: Corresponding node
     """
     props = dict(name=prop)
@@ -1435,9 +1249,7 @@ def get_mf_value(node, rel):
     This method will get mf value to set race in web form. The MF Node is on the end of a relation (person or race.)
 
     :param node: Start Node for the relation (person or race)
-
     :param rel: Relation type (person2mf or race2mf)
-
     :return: mf value (man/vrouw)
     """
     mf_node = ns.get_endnode(start_node=node, rel_type=rel)
@@ -1461,7 +1273,6 @@ def points_race(pos):
     Points are in sequence of arrival: 25 - 20 - 18 - 16 - 15 - ...
 
     :param pos: Position in the race
-
     :return: Points associated for this position. Minimum is one point.
     """
     if pos == 1:
@@ -1477,33 +1288,12 @@ def points_race(pos):
     return points
 
 
-def points_short(pos):
-    """
-    This method will return points for the 'Korte Cross'.
-    Points are in sequence of arrival: 20 - 17 - 15 - 14 - ...
-
-    :param pos: Position in the race
-
-    :return: Points associated for this position. Minimum is one point.
-    """
-    if pos == 1:
-        points = 20
-    elif pos == 2:
-        points = 17
-    else:
-        points = 18-pos
-    if points < 1:
-        points = 1
-    return points
-
-
 def points_sum(point_list):
     """
     This function will calculate the total of the points for this participant. For now, the sum of all points is
     calculated.
 
     :param point_list: list of the points for the participant.
-
     :return: sum of the points
     """
     # Todo: points for 'deelname' should be calculated separately and in full
@@ -1518,21 +1308,16 @@ def points_sum(point_list):
     return points
 
 
-def results_for_category(mf, cat):
+def results_for_mf(mf):
     """
-    This method will calculate the points for all participants in mf and category. Split up in points for wedstrijd and
-    points for deelname at this point.
+    This method will calculate the points for all participants in mf. Split up in points for wedstrijd and points for
+    deelname at this point.
 
     :param mf: Dames / Heren
-    :param cat: NID for the category
     :return: Sorted list with tuples (name, points, number of races, nid for person).
     """
-    # Get participants for 'PK' and 'BK'
-    pk_list = ns.get_persons_in_organization("PK")
-    bk_list = ns.get_persons_in_organization("BK")
-    mbk_list = ns.get_persons_in_organization("MBK")
     # Wedstrijden
-    res_wedstrijd = ns.points_race(mf=mf, cat=cat, orgtype="Wedstrijd")
+    res_wedstrijd = ns.points_race(mf=mf, orgtype="Wedstrijd")
     result_list = {}
     for df_line in res_wedstrijd.iterrows():
         rec = df_line[1].to_dict()
@@ -1549,7 +1334,7 @@ def results_for_category(mf, cat):
         )
         wedstrijd_total[nid] = params
     # Deelname
-    res_deelname = ns.points_race(mf=mf, cat=cat, orgtype="Deelname")
+    res_deelname = ns.points_race(mf=mf, orgtype="Deelname")
     result_list = {}
     for df_line in res_deelname.iterrows():
         rec = df_line[1].to_dict()
@@ -1586,37 +1371,13 @@ def results_for_category(mf, cat):
         wedstrijd_total[nid]["nr"] = wedstrijd_total[nid]["wedstrijd_nr"] + wedstrijd_total[nid]["deelname_nr"]
         wedstrijd_total[nid]["points"] = wedstrijd_total[nid]["wedstrijd_points"] + \
             wedstrijd_total[nid]["deelname_points"]
-        if nid in pk_list:
-            wedstrijd_total[nid]["points"] += bonus_pk
-        if nid in bk_list:
-            wedstrijd_total[nid]["points"] += bonus_bk
-        if nid in mbk_list:
-            wedstrijd_total[nid]["points"] += bonus_mbk
     # Then convert dictionary in sorted list
     result_total = []
     for nid in wedstrijd_total:
         person = Person(nid)
-        cat = person.get_category()
-        result_total.append([person.get_name(), wedstrijd_total[nid]["points"], wedstrijd_total[nid]["nr"],
-                             nid, cat["name"], cat["seq"]])
+        result_total.append([person.get_name(), wedstrijd_total[nid]["points"], wedstrijd_total[nid]["nr"], nid])
     result_sorted = sorted(result_total, key=lambda x: (x[5], -x[1]))
     return result_sorted
-
-
-def results_for_mf(mf):
-    """
-    This method will consolidate results for all categories for the MF.
-
-    :param mf: Dames / Heren
-
-    :return: List sorted per category and on points within category
-    """
-    results = []
-    category_list = ns.get_category_nodes()
-    for cat in category_list:
-        result_cat = results_for_category(mf, cat["nid"])
-        results.extend(result_cat)
-    return results
 
 
 def participant_seq_list(race_id):

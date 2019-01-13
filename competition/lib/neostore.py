@@ -207,34 +207,6 @@ class NeoStore:
         # Then return the result as a list
         return list(node_set)
 
-    def get_cat4part(self, part_nid):
-        """
-        This method will return category NID for the participant.
-
-        :param part_nid: Nid of the participant node.
-        :return: Category NID, or False if no category could be found.
-        """
-        query = "MATCH (n:Participant {nid:{p}})<-[:is]-()-[:inCategory]->(c:Category) RETURN c.nid as nid"
-        res = self.graph.run(query, p=part_nid)
-        try:
-            rec = res.next()
-        except StopIteration:
-            return False
-        return rec["nid"]
-
-    def get_category_nodes(self):
-        """
-        This function returns the category nodes in sequence
-
-        :return: List of category nodes in sequence.
-        """
-        res = []
-        query = "MATCH (cat:Category) RETURN cat ORDER BY cat.seq"
-        cursor = self.graph.run(query)
-        while cursor.forward():
-            res.append(cursor.current["cat"])
-        return res
-
     def get_location_nodes(self):
         """
         This function returns the location nodes in sequence
@@ -525,24 +497,6 @@ class NeoStore:
                             loc=dict(rec['loc']))
             race4person.append(res_dict)
         return race4person
-
-    def get_race_seq(self, race_id):
-        """
-        This method will calculate the sequence for the race with nid race_id. The calculated sequence is the lowest
-        sequence for the associated categories.
-
-        :param race_id: nid of the race.
-        :return: lowest sequence number of the associated categories.
-        """
-        query = """
-            MATCH (race:Race)-[:forCategory]->(category:Category)
-            WHERE race.nid = '{race_id}'
-            RETURN category.seq AS seq
-            ORDER BY category.seq
-            LIMIT 1
-        """.format(race_id=race_id)
-        res = self.graph.run(query).data()[0]
-        return res['seq']
 
     def get_startnode(self, end_node=None, rel_type=None):
         """

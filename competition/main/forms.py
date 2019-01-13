@@ -14,8 +14,6 @@ class LocationAdd(Form):
 class PersonAdd(Form):
     name = StringField('Naam: ', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
     mf = RadioField(choices=[('man', 'man'), ('vrouw', 'vrouw')], default='man', validators=[wtv.InputRequired()])
-    category = SelectField('Categorie: ', coerce=str)
-    # born = DateField('Geboren: ', validators=[wtv.Optional()])
     submit = SubmitField('OK')
 
 
@@ -31,7 +29,6 @@ class RaceAdd(Form):
     name = StringField('Naam', validators=[wtv.Optional(), wtv.Length(1, 12)])
     mf = RadioField(choices=[('man', 'jongens/heren'), ('vrouw', 'meisjes/dames')], default='man',
                     validators=[wtv.InputRequired()])
-    category = SelectMultipleField('Categorie: ', coerce=str)
     cross = BooleanField('Korte Cross')
     submit = SubmitField('OK')
 

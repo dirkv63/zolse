@@ -2,9 +2,9 @@
 This procedure will test the neostore functionality. No Flask Application items are required.
 """
 
-import os
 import unittest
-from competition import create_app, neostore
+from competition import create_app
+from competition.lib import neostore
 from competition.lib.neostructure import *
 from config import TestConfig
 from py2neo.data import Node
