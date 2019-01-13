@@ -16,6 +16,7 @@ part2race = "participates"
 person2mf = "mf"
 person2participant = "is"
 race2mf = "forMF"
+race2type = "type"
 
 # Definitions
 def_not_defined = "Not defined"

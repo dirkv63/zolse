@@ -651,7 +651,7 @@ class Organization:
 
         :return: Organization Type. Wedstrijd (Default) or Deelname, or False if not set.
         """
-        org_type = ns.get_endnode(self.org_node, "type")
+        org_type = ns.get_endnode(self.org_node, org2type)
         if isinstance(org_type, Node):
             return org_type["name"]
         else:
@@ -678,7 +678,7 @@ class Organization:
                 # Check if date (day, month, year) can be removed.
                 # Don't remove single date, clear all dates that can be removed. This avoids the handling of key
                 # because date nodes don't have a nid.
-                ns.clear_date()
+                ns.remove_orphan_nodes(lbl_day)
             else:
                 # Link organization to date exists and no need to change
                 return True
@@ -896,14 +896,16 @@ class Race:
 
     def get_racetype(self):
         """
-        This method will return type of the race by returning the organization type (Wedstrijd or Deelname).
+        This method will return the race type (Wedstrijd, Nevenwedstrijd, Deelname).
 
-        :return: Type of the race: Wedstrijd, Korte Cross or Deelname
+        :return: Race Type: Wedstrijd, Nevenwedstrijd, Deelname or False if not available.
         """
-        if self.is_short():
-            return "Short"
+        race_type = ns.get_endnode(self.race_node, race2type)
+        if isinstance(race_type, Node):
+            return race_type["name"]
         else:
-            return self.org.get_org_type()
+            # race_type not yet defined for race.
+            return False
 
     def set_org(self):
         """
@@ -988,10 +990,10 @@ def organization_delete(org_id=None):
         ns.remove_node_force(nid=org_id)
         # Check if this results in orphan dates, remove these dates
         current_app.logger.debug("Then remove all orphan dates")
-        ns.clear_date()
+        ns.remove_orphan_nodes(lbl_day)
         # Check if this results in orphan locations, remove these locations.
         current_app.logger.debug("Trying to delete orphan organizations.")
-        ns.clear_locations()
+        ns.remove_orphan_nodes(lbl_location)
         current_app.logger.debug("All done")
         current_app.logger.info("Organization {lbl} removed.".format(lbl=org_label))
         return True

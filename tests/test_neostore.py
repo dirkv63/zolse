@@ -34,7 +34,7 @@ class TestNeoStore(unittest.TestCase):
         self.assertTrue(isinstance(loc_node, Node))
         self.assertEqual(loc_node["city"], city_name)
         # Clear locations not connected to anything else
-        self.ns.clear_locations()
+        self.ns.remove_orphan_nodes(lbl)
         loc_node = self.ns.get_node(lbl, **props)
         self.assertFalse(loc_node)
 
@@ -134,10 +134,10 @@ class TestNeoStore(unittest.TestCase):
         start_node = self.ns.get_node(lbl, **props)
         self.assertTrue(isinstance(start_node, Node))
         self.assertEqual(start_node["name"], my_name)
-        rel_type = person2category
+        rel_type = person2mf
         end_node = self.ns.get_endnode(start_node, rel_type)
         self.assertTrue(isinstance(end_node, Node))
-        self.assertEqual(end_node["name"], "Masters +50")
+        self.assertEqual(end_node["name"], "Heren")
         # Check I get multiple results if relation type is not specified
         end_node = self.ns.get_endnode(start_node)
         self.assertTrue(isinstance(end_node, Node))
@@ -162,11 +162,11 @@ class TestNeoStore(unittest.TestCase):
         start_node = self.ns.get_node(lbl, **props)
         self.assertTrue(isinstance(start_node, Node))
         self.assertEqual(start_node["name"], my_name)
-        rel_type = person2category
+        rel_type = person2mf
         end_nodes = self.ns.get_endnodes(start_node, rel_type)
         self.assertEqual(len(end_nodes), 1)
         self.assertTrue(isinstance(end_nodes[0], Node))
-        self.assertEqual(end_nodes[0]["name"], "Masters +50")
+        self.assertEqual(end_nodes[0]["name"], "Heren")
         # Check I get multiple results if relation type is not specified
         end_nodes = self.ns.get_endnodes(start_node)
         self.assertTrue(len(end_nodes) > 1)
@@ -255,6 +255,26 @@ class TestNeoStore(unittest.TestCase):
         end_node = "DoesNotExist"
         start_node = self.ns.get_startnode(end_node, rel_type)
         self.assertFalse(start_node)
+
+    def test_nr_relations(self):
+        self.assertTrue(isinstance(self.ns.get_nr_relations(), int))
+
+    def test_remove_orphan_nodes(self):
+        # Count number of nodes and relations to start with.
+        nr_nodes_start = len(self.ns.get_nodes())
+        nr_rels_start = self.ns.get_nr_relations()
+        lbl = "TestNode"
+        testnames = ["test1", "test2"]
+        for name in  testnames:
+            props = dict(name=name)
+            self.ns.create_node(lbl, **props)
+        # Check number of nodes = start +2, number of relations did not change.
+        self.assertEqual(len(self.ns.get_nodes()), nr_nodes_start + len(testnames))
+        self.assertEqual(self.ns.get_nr_relations(), nr_rels_start)
+        self.ns.remove_orphan_nodes(lbl)
+        # Count number of nodes and relations at end.
+        self.assertEqual(len(self.ns.get_nodes()), nr_nodes_start)
+        self.assertEqual(self.ns.get_nr_relations(), nr_rels_start)
 
 
 if __name__ == "__main__":

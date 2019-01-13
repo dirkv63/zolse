@@ -99,43 +99,6 @@ class NeoStore:
         self.graph.merge(rel)
         return
 
-    def clear_date_node(self, label):
-        """
-        This method will clear every date node as specified by label. Label can be Day, Month or Year. The node will be
-        deleted if not used anymore. So it can have only one incoming relation: DAY - MONTH or YEAR.
-        Therefore find all relations. If there is only one, then the date node can be deleted.
-
-        :param label: Day, Month or Year
-        :return:
-        """
-        current_app.logger.info("Clearing all date nodes with label {lbl}".format(lbl=label))
-        query = """
-            MATCH (n:{label})-[rel]-()
-            WITH n, count(rel) as rel_cnt
-            WHERE rel_cnt=1
-            DETACH DELETE n
-        """.format(label=label.capitalize())
-        self.graph.run(query)
-        return
-
-    def clear_date(self):
-        """
-        This method will clear dates that are no longer connected to an organization, a person's birthday or any other
-        item.
-        First find days with one relation only, this must be a connection to the month. Remove these days.
-        Then find months with one relation only, this must be a connection to the year. Remove these months.
-        Finally find years with one relation only, this must be a connection to the Gregorian calendar. Remove these
-        years.
-        Compare with method remove_date(ds), that will check to remove only a specific date.
-
-        :return:
-        """
-        # First Remove Days
-        self.clear_date_node("Day")
-        self.clear_date_node("Month")
-        self.clear_date_node("Year")
-        return
-
     def date_node(self, ds):
         """
         This method will get a datetime.date timestamp and return the associated node. The calendar module will
@@ -325,6 +288,16 @@ class NeoStore:
         res = self.graph.run(query)
         return nodelist_from_cursor(res)
 
+    def get_nr_relations(self):
+        """
+        This method will return the number of relations.
+
+        :return: Number of relations in the graph.
+        """
+        query = "MATCH (a)--(b) RETURN count(*) as cnt"
+        res = self.get_query_data(query)
+        return res[0]["cnt"]
+
     def get_part_range_for_race(self, race_id):
         """
         This method will get the range of people that can participate in the race. So everyone who is in one of the race
@@ -410,35 +383,54 @@ class NeoStore:
             return False
         return rec["nodes(result)"]
 
-    def points_race(self, mf, cat, orgtype):
+    def points_race(self, mf, orgtype):
         """
-        This query will for the specified mf and category collect every participant and points for the participation
-        for every person in the category.
+        This query returns the all participation points for every person for the specified mf and orgtype (Wedstrijd or
+        Deelname).
 
         :param mf: Dames / Heren
-        :param cat: Category Nid
         :param orgtype: Wedstrijd / Deelname
         :return: A dataframe with records having the person_nid and points for each participation on every race.
         """
         query = """
             MATCH (person:Person)-[:mf]->(mf:MF  {name: {mf}}),
-                  (person)-[:inCategory]->(cat:Category {nid: {cat}}),
                   (person)-[:is]->(part)-[:participates]-(race:Race),
                   (race)<-[:has]-(org:Organization),
                   (org)-[:type]->(orgtype:OrgType {name: {orgtype}})
             RETURN person.nid as person_nid, part.points as points
         """
-        res = self.graph.run(query, mf=mf, cat=cat, orgtype=orgtype).data()
+        res = self.graph.run(query, mf=mf, orgtype=orgtype).data()
         return DataFrame(res)
 
-    def get_query(self, query):
+    def get_query(self, query, **kwargs):
         """
-        This method accepts a Cypher query as parameter, runs the query and returns the result as a cursor.
+        This method accepts a Cypher query and returns the result as a cursor.
 
         :param query: Cypher Query to run
-        :return: Result of the Cypher Query as a cursor
+        :param kwargs: Optional Keyword parameters for the query.
+        :return: Result of the Cypher Query as a cursor.
         """
-        return self.graph.run(query)
+        return self.graph.run(query, **kwargs)
+
+    def get_query_data(self, query, **kwargs):
+        """
+        This method accepts a Cypher query and returns the result as a list of dictionaries.
+
+        :param query: Cypher Query to run
+        :param kwargs: Optional Keyword parameters for the query.
+        :return: Result of the Cypher Query as a list of dictionaries.
+        """
+        return self.get_query(query, **kwargs).data()
+
+    def get_query_df(self, query, **kwargs):
+        """
+        This method accepts a Cypher query and returns the result as a pandas dataframe.
+
+        :param query: Cypher Query to run
+        :param kwargs: Optional Keyword parameters for the query.
+        :return: Result of the Cypher Query as a pandas dataframe.
+        """
+        return self.get_query(query, **kwargs).to_data_frame()
 
     def get_race_list(self, org_id):
         """
@@ -720,6 +712,21 @@ class NeoStore:
         self.graph.run(query)
         return
 
+    def remove_orphan_nodes(self, label):
+        """
+        This method removes orphan nodes of a specific Type (Location, Date). Orphan nodes have no relation to other
+        nodes.
+
+        :return:
+        """
+        query = "MATCH (node:{label}) WHERE NOT (node)--() RETURN node".format(label=label)
+        cursor = self.get_query(query)
+        while cursor.forward():
+            rec = cursor.current
+            current_app.logger.info("Remove orphan Node type {lbl} - Node: {node}".format(lbl=label, node=rec["node"]))
+            self.remove_node(rec["node"])
+        return
+
     def remove_relation(self, start_nid=None, end_nid=None, rel_type=None):
         """
         This method will remove the relation rel_type between Node with nid start_nid and Node with nid end_nid.
@@ -794,7 +801,7 @@ def validate_node(node, label):
     :param label: Label that needs to be in the node.
     :return: True, if label is in the node. False for all other reasons (e.g. node is not a node.
     """
-    if type(node) is Node:
+    if isinstance(node, Node):
         return node.has_label(label)
     else:
         return False
