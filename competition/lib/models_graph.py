@@ -643,7 +643,12 @@ class Organization:
 
         :return: list of person nodes for persons that do participate in a race for this organization.
         """
-        return ns.get_part_for_org(self.get_org_id())
+        query = """
+            MATCH (n:Organization)-[:has]->(m:Race)<-[:participates]-(d:Participant)<-[:is]-(p:Person)
+            WHERE n.nid = '{org_id}'
+            RETURN p
+        """.format(org_id=self.get_org_id())
+        return ns.get_query(query)
 
     def get_org_type(self):
         """
@@ -824,8 +829,18 @@ class Race:
 
         :return: list of next participant nodes
         """
-        next_part_nodes = ns.get_next_parts_for_race(race_id=self.race_node["nid"])
-        return next_part_nodes
+        query = """
+            MATCH (org:Organization)-[:has]->(race:Race)-[:forCategory]->(cat:Category),
+                (race)-[:forMF]-(mf:MF),
+                (person:Person)-[:inCategory]->(cat),
+                (person)-[:mf]->(mf)
+            WHERE race.nid='{race_id}'
+            AND NOT EXISTS ((person)-[:is]->(:Participant)-[:participates]->(:Race)<-[:has]-(org:Organization))
+            RETURN person
+        """.format(race_id=race_id)
+        res = ns.get_query(query)
+        Be Careful: this may return in duplicate nodes.
+        return res
 
     def get_part_range(self):
         """
@@ -963,9 +978,19 @@ def organization_list():
     This function will return a list of organizations. Each item in the list is a dictionary with fields date,
     organization, city, id (for organization nid) and type.
 
-    :return:
+    :return: List of dictionaries containing fields date, organization, city, id (organization nid) and type.
     """
-    return ns.get_organization_list()
+    query = """
+        MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
+              (org)-[:type]->(ot:OrgType)
+        RETURN day.key as date, org.name as organization, loc.city as city, org.nid as id, ot.name as type
+        ORDER BY day.key ASC
+    """
+    res = ns.get_query_data(query)
+    # Convert date key from YYYY-MM-DD to DD-MM-YYYY
+    for rec in res:
+        rec["date"] = datetime.datetime.strptime(rec["date"], "%Y-%m-%d").strftime("%d-%m-%Y")
+    return res
 
 
 def organization_delete(org_id=None):
@@ -975,7 +1000,6 @@ def organization_delete(org_id=None):
     these will also be removed.
 
     :param org_id:
-
     :return:
     """
     org = Organization(org_id=org_id)
@@ -1230,9 +1254,10 @@ def get_location_list():
     This method will return the location list in sequence. Location items are returned in list of tuples
     with nid and city name
 
-    :return: List of tuples containing nid and city.
+    :return: List of tuples containing nid and city sorted by City name.
     """
-    return [(locn["nid"], locn["city"]) for locn in ns.get_location_nodes()]
+    query = "MATCH (n:Location) RETURN n.nid as nid, n.city as city ORDER BY n.city"
+    return [(locn["nid"], locn["city"]) for locn in ns.get_query_data(query)]
 
 
 def get_mf_node(prop):

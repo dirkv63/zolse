@@ -19,8 +19,6 @@ class TestNeoStore(unittest.TestCase):
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
         self.ns = neostore.NeoStore()
-        # self.ns.init_graph()
-        # my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
 
     def tearDown(self):
         self.app_ctx.pop()
@@ -182,13 +180,6 @@ class TestNeoStore(unittest.TestCase):
         start_node = "DoesNotExist"
         end_nodes = self.ns.get_endnodes(start_node, rel_type)
         self.assertFalse(end_nodes)
-
-    def test_get_location_nodes(self):
-        res = self.ns.get_location_nodes()
-        self.assertTrue(isinstance(res, list))
-        self.assertTrue(isinstance(res[0]["city"], str))
-        for n in res:
-            print(n["city"])
 
     def test_get_race4person(self):
         lbl = lbl_person

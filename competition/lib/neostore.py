@@ -50,26 +50,6 @@ class NeoStore:
         graph = Graph(**neo4j_config)
         return graph
 
-    def clear_locations(self):
-        """
-        This method will check if there are orphan locations. These are locations without relations. These locations
-        can be removed.
-
-        :return:
-        """
-        # Note that you could DETACH DELETE location nodes here, but then you miss the opportunity to log what is
-        # removed.
-        query = """
-            MATCH (loc:Location) WHERE NOT (loc)--() RETURN loc
-        """
-        cursor = self.graph.run(query)
-        while cursor.forward():
-            rec = cursor.current
-            loc = rec['loc']
-            current_app.logger.info("Remove location {city}".format(city=loc['city']))
-            self.remove_node(loc)
-        return
-
     def create_node(self, *labels, **props):
         """
         Function to create node. The function will return the node object.
@@ -170,20 +150,6 @@ class NeoStore:
         # Then return the result as a list
         return list(node_set)
 
-    def get_location_nodes(self):
-        """
-        This function returns the location nodes in sequence
-
-        :return: List of location nodes in sequence.
-        """
-        res = []
-        query = "MATCH (n:Location) RETURN n ORDER BY n.city"
-        cursor = self.graph.run(query)
-        while cursor.forward():
-            rec = cursor.current
-            res.append(rec["n"])
-        return res
-
     def get_node(self, *labels, **props):
         """
         This method will select a single (or first) node that have labels and properties
@@ -232,40 +198,6 @@ class NeoStore:
             self.set_node_nid(node_id=rec["node_id"])
             cnt += 1
         return cnt
-
-    def get_organization_list(self):
-        """
-        This method will get a list of all organizations. Each item in the list is a dictionary with fields date,
-        organization, city, id (for organization nid) and type.
-
-        :return:
-        """
-        query = """
-            MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
-                  (org)-[:type]->(ot:OrgType)
-            RETURN day.key as date, org.name as organization, loc.city as city, org.nid as id, ot.name as type
-            ORDER BY day.key ASC
-        """
-        res = self.graph.run(query).data()
-        # Convert date key from YYYY-MM-DD to DD-MM-YYYY
-        for rec in res:
-            rec["date"] = datetime.strptime(rec["date"], "%Y-%m-%d").strftime("%d-%m-%Y")
-        return res
-
-    def get_part_for_org(self, org_id):
-        """
-        This method will return a list of people that participate in a race for this organization.
-
-        :param org_id: Nid of the organization
-        :return:
-        """
-        query = """
-            MATCH (n:Organization)-[:has]->(m:Race)<-[:participates]-(d:Participant)<-[:is]-(p:Person)
-            WHERE n.nid = '{org_id}'
-            RETURN p
-        """.format(org_id=org_id)
-        res = self.graph.run(query)
-        return nodelist_from_cursor(res)
 
     def get_next_parts_for_race(self, race_id):
         """

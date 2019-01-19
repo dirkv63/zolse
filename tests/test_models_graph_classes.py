@@ -21,8 +21,6 @@ class TestModelGraphClass(unittest.TestCase):
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
         self.ns = neostore.NeoStore()
-        # self.ns.init_graph()
-#       # my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
 
     def tearDown(self):
         self.app_ctx.pop()
@@ -46,14 +44,13 @@ class TestModelGraphClass(unittest.TestCase):
         else:
             random_person = person_list[0]
         self.assertTrue(isinstance(random_person, dict))
-        # Dict keys: nid, name, category, cat_seq, mf, and races
-        for lbl in ["nid", "name", "category", "mf"]:
+        # Dict keys: nid, name, mf, and races
+        for lbl in ["nid", "name", "mf"]:
             self.assertTrue(isinstance(random_person[lbl], str))
             self.assertIsNotNone(random_person[lbl])
-        for lbl in ["cat_seq", "races"]:
+        for lbl in ["races"]:
             self.assertTrue(isinstance(random_person[lbl], int))
             self.assertIsNotNone(random_person[lbl])
-        self.assertNotEqual(random_person["category"], def_not_defined)
 
     def test_organization_add(self):
         nr_nodes = len(self.ns.get_nodes())
@@ -137,6 +134,34 @@ class TestModelGraphClass(unittest.TestCase):
         self.assertFalse(mg.get_location(loc_nid), "Location is removed as part of Organization removal")
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()), "Number of end nodes not equal to start nodes")
 
+    def test_organization_participants(self):
+        """
+        This method will test the participants method of the Organization object.
+        """
+        # Find organization for Lilse Bergen
+        props = dict(name="Lilse Bergen")
+        org_node = self.ns.get_node(lbl_organization, **props)
+        org = mg.Organization(org_id=org_node["nid"])
+        participants = org.get_participants()
+        for part_node in participants:
+            self.assertTrue(part_node, Node)
+
+    def test_get_location_list(self):
+        res = mg.get_location_list()
+        self.assertTrue(isinstance(res, list))
+        self.assertTrue(isinstance(res[0][0], str))
+        self.assertTrue(isinstance(res[0][1], str))
+        self.assertEqual(len(res[0]), 2)
+        for n in res:
+            print(n[1])
+
+    def test_organization_list(self):
+        res = mg.organization_list()
+        rec = res[0]
+        for key in ["organization", "city", "id", "date", "type"]:
+            self.assertTrue(isinstance(rec[key], str))
+
+"""
     def test_race_add(self):
         nr_nodes = len(self.ns.get_nodes())
         # This function tests the organization.
@@ -156,12 +181,8 @@ class TestModelGraphClass(unittest.TestCase):
         # Add Race Seniors Dames
         # Find node for Category 'Seniors'
         props = dict(name='Seniors')
-        lbl = 'Category'
-        cat_node = self.ns.get_node(lbl, **props)
         race_props = dict(
-            categories=[cat_node["nid"]],
             mf="vrouw",
-            short=False,
             name=False
         )
         rc = mg.Race(org_id=org_nid)
@@ -170,7 +191,7 @@ class TestModelGraphClass(unittest.TestCase):
         mg.race_delete(rc.get_node()['nid'])
         mg.organization_delete(org_id=org_nid)
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()))
-
+"""
 
 if __name__ == "__main__":
     unittest.main()
