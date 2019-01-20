@@ -199,27 +199,6 @@ class NeoStore:
             cnt += 1
         return cnt
 
-    def get_next_parts_for_race(self, race_id):
-        """
-        This method will get the list of people that can be the next participant of the race. So they are in the range
-        of the race, but not yet selected as a participant in this race or another race for this organization (e.g.
-        participant for the short cross will not participate in the long cross)..
-
-        :param race_id: Nid of the race.
-        :return: Person node list for potential participants.
-        """
-        query = """
-            MATCH (org:Organization)-[:has]->(race:Race)-[:forCategory]->(cat:Category),
-                (race)-[:forMF]-(mf:MF),
-                (person:Person)-[:inCategory]->(cat),
-                (person)-[:mf]->(mf)
-            WHERE race.nid='{race_id}'
-            AND NOT EXISTS ((person)-[:is]->(:Participant)-[:participates]->(:Race)<-[:has]-(org:Organization))
-            RETURN person
-        """.format(race_id=race_id)
-        res = self.graph.run(query)
-        return nodelist_from_cursor(res)
-
     def get_nr_relations(self):
         """
         This method will return the number of relations.
@@ -230,51 +209,13 @@ class NeoStore:
         res = self.get_query_data(query)
         return res[0]["cnt"]
 
-    def get_part_range_for_race(self, race_id):
-        """
-        This method will get the range of people that can participate in the race. So everyone who is in one of the race
-        categories and required MF.
-
-        :param race_id:
-        :return:
-        """
-        query = """
-            MATCH (race:Race)-[:forCategory]->(cat:Category),
-                (race)-[:forMF]-(mf:MF),
-                (person:Person)-[:inCategory]->(cat),
-                (person)-[:mf]->(mf)
-                WHERE race.nid='{race_id}'
-                RETURN (person)
-        """.format(race_id=race_id)
-        res = self.graph.run(query)
-        return nodelist_from_cursor(res)
-
-    def get_persons_in_organization(self, org_name):
-        """
-        This method will get the person nid for the participants in an organization. This can be used to do the special
-        point calculation, e.g. +3 points for PK, +10 points for BK, ...
-
-        :param org_name: Name of the organization
-        :return: list of person nid that participate in the organization
-        """
-        query = """
-            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race),
-            (race)<-[:has]-(org {name: {org_name}})
-            RETURN person.nid as person_nid
-        """
-        res = self.graph.run(query, org_name=org_name).data()
-        person_list = []
-        for rec in res:
-            person_list.append(rec["person_nid"])
-        return person_list
-
     def get_participant_in_race(self, pers_id=None, race_id=None):
         """
         This function will for a person get the participant node in a race, or False if the person did not
         participate in the race according to current information in the database.
 
-        :param pers_id:
-        :param race_id:
+        :param pers_id: nid of the person
+        :param race_id: nid of the participant in the race.
         :return: participant node, or False
         """
         query = """

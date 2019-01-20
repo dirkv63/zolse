@@ -736,7 +736,7 @@ class Race:
     org_id needs to be specified, or it can be done as a race node ID (in which case org_id should be none).
 
     The object has the race node and the organization object. Methods include creating and maintaining the race graph,
-    consisting of links to the categories, mf and organization.
+    consisting of links to mf and organization.
     """
 
     def __init__(self, org_id=None, race_id=None):
@@ -744,9 +744,7 @@ class Race:
         Define the Race object.
 
         :param org_id: Node ID of the Organization, used to create a new race.
-
         :param race_id: Node ID of the Race, to handle an existing race. Organization will be calculated from race.
-
         :return:
         """
         self.org = None
@@ -830,27 +828,13 @@ class Race:
         :return: list of next participant nodes
         """
         query = """
-            MATCH (org:Organization)-[:has]->(race:Race)-[:forCategory]->(cat:Category),
-                (race)-[:forMF]-(mf:MF),
-                (person:Person)-[:inCategory]->(cat),
-                (person)-[:mf]->(mf)
+            MATCH (org:Organization)-[:has]->(race:Race)-[:forMF]-(mf:MF)<-[:mf]-(person)
             WHERE race.nid='{race_id}'
             AND NOT EXISTS ((person)-[:is]->(:Participant)-[:participates]->(:Race)<-[:has]-(org:Organization))
-            RETURN person
-        """.format(race_id=race_id)
+            RETURN distinct person order by person.name
+        """.format(race_id=self.race_id)
         res = ns.get_query(query)
-        Be Careful: this may return in duplicate nodes.
         return res
-
-    def get_part_range(self):
-        """
-        This method will get the range of people that can participate in the race. So everyone who is in a race
-        category and required MF.
-
-        :return: list of the range of potential participants for the race.
-        """
-        prange_nodes = ns.get_part_range_for_race(race_id=self.race_node["nid"])
-        return prange_nodes
 
     def get_label(self):
         """
