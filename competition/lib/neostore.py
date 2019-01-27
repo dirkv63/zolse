@@ -1,5 +1,6 @@
 """
-This class consolidates functions related to the neo4J datastore.
+This class consolidates functions and methods related to the neo4J datastore. These are specific to Neo4J store and
+independent from the application.
 """
 
 import os
@@ -7,11 +8,9 @@ import uuid
 from competition.lib.neostructure import *
 from datetime import datetime, date
 from flask import current_app
-from pandas import DataFrame
 from py2neo import Database, Graph, Node, Relationship, NodeMatcher, RelationshipMatch
 
 
-# Todo: Review on IF True/False, test on ininstance() instead
 class NeoStore:
 
     def __init__(self):
@@ -52,16 +51,15 @@ class NeoStore:
 
     def create_node(self, *labels, **props):
         """
-        Function to create node. The function will return the node object.
-        Note that a 'nid' attribute will be added to the node. This is a UUID4 unique identifier. This is a temporary
-        solution cause there seems to be no other way to extract the node ID from a node.
+        Function to create node. The function will return the node object. Note that a 'nid' attribute will be added to
+        the node. This is a UUID4 unique identifier.
 
         :param labels: Labels for the node
         :param props: Value dictionary with values for the node.
         :return: Node that has been created.
         """
         props['nid'] = str(uuid.uuid4())
-        current_app.logger.warning("Trying to create node with params {p}".format(p=props))
+        current_app.logger.info("Trying to create node with params {p}".format(p=props))
         component = Node(*labels, **props)
         self.graph.create(component)
         return component
@@ -100,7 +98,7 @@ class NeoStore:
             )
             lbl = lbl_day
             date_node = self.get_node(lbl, **props)
-            if not date_node:
+            if not isinstance(date_node, Node):
                 date_node = self.create_node(lbl, **props)
             return date_node
         else:
@@ -159,7 +157,7 @@ class NeoStore:
         :return: node that fulfills the criteria, or False if there is no node
         """
         nodes = self.get_nodes(*labels, **props)
-        if not nodes:
+        if not isinstance(nodes, list):
             current_app.logger.debug("Looking for 1 node for label {lbl} and props {p}, found none."
                                      .format(lbl=labels, p=props))
             return False
@@ -209,72 +207,6 @@ class NeoStore:
         res = self.get_query_data(query)
         return res[0]["cnt"]
 
-    def get_participant_in_race(self, pers_id=None, race_id=None):
-        """
-        This function will for a person get the participant node in a race, or False if the person did not
-        participate in the race according to current information in the database.
-
-        :param pers_id: nid of the person
-        :param race_id: nid of the participant in the race.
-        :return: participant node, or False
-        """
-        query = """
-            MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-            WHERE pers.nid='{pers_id}' AND race.nid='{race_id}'
-            RETURN part
-        """.format(pers_id=pers_id, race_id=race_id)
-        res = self.graph.run(query)
-        nodes = nodelist_from_cursor(res)
-        if len(nodes) > 1:
-            current_app.logger.error("More than one ({nr}) Participant node for Person {pnid} and Race {rnid}"
-                                     .format(pnid=pers_id, rnid=race_id, nr=len(nodes)))
-        elif len(nodes) == 0:
-            return False
-        return nodes[0]
-
-    def get_participant_seq_list(self, race_id):
-        """
-        This method will return a list of participant nodes in sequence of arrival for a particular race.
-
-        :param race_id:
-        :return: Node list
-        """
-        query = """
-            MATCH race_ptn = (race)<-[:participates]-(participant),
-                  participants = (participant)<-[:after*0..]-()
-            WHERE race.nid = '{race_id}'
-            WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
-            WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
-            UNWIND result_coll as result
-            RETURN nodes(result)
-        """.format(race_id=race_id)
-        # Get the result of the query in a recordlist
-        cursor = self.graph.run(query)
-        try:
-            rec = cursor.next()
-        except StopIteration:
-            return False
-        return rec["nodes(result)"]
-
-    def points_race(self, mf, orgtype):
-        """
-        This query returns the all participation points for every person for the specified mf and orgtype (Wedstrijd or
-        Deelname).
-
-        :param mf: Dames / Heren
-        :param orgtype: Wedstrijd / Deelname
-        :return: A dataframe with records having the person_nid and points for each participation on every race.
-        """
-        query = """
-            MATCH (person:Person)-[:mf]->(mf:MF  {name: {mf}}),
-                  (person)-[:is]->(part)-[:participates]-(race:Race),
-                  (race)<-[:has]-(org:Organization),
-                  (org)-[:type]->(orgtype:OrgType {name: {orgtype}})
-            RETURN person.nid as person_nid, part.points as points
-        """
-        res = self.graph.run(query, mf=mf, orgtype=orgtype).data()
-        return DataFrame(res)
-
     def get_query(self, query, **kwargs):
         """
         This method accepts a Cypher query and returns the result as a cursor.
@@ -304,64 +236,6 @@ class NeoStore:
         :return: Result of the Cypher Query as a pandas dataframe.
         """
         return self.get_query(query, **kwargs).to_data_frame()
-
-    def get_race_list(self, org_id):
-        """
-        This function will get an organization nid and return the Races associated with the Organization.
-        The races will be returned as a list of dictionaries with fields race node and mf node.
-
-        :param org_id: nid of the Organization.
-        :return: List of dictionaries with race and mf nodes sorted on category and mf, or empty list which evaluates to
-        False.
-        """
-        query = """
-            MATCH (org:Organization)-[:has]->(race:Race)-[:forMF]->(mf:MF)
-            WHERE org.nid = '{org_id}'
-            RETURN race, mf
-            ORDER BY race.seq, mf.name
-        """.format(org_id=org_id)
-        res = self.graph.run(query)
-        # Convert result set in an array of nodes
-        res_arr = []
-        while res.forward():
-            rec = res.current
-            race_nodes = dict(
-                race=rec["race"],
-                mf=rec["mf"]
-            )
-            res_arr.append(race_nodes)
-        return res_arr
-
-    def get_race4person(self, person_id):
-        """
-        This method will get a list of participant information for a person, sorted on date. The information will be
-        provided in a list of dictionaries. The dictionary values are the corresponding node dictionaries.
-
-        :param person_id:
-        :return: list of Participant (part),race, date, organization (org) and orgtype and Location (loc) Node
-        dictionaries in date sequence.
-        """
-        race4person = []
-        query = """
-            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race),
-                  (race)<-[:has]-(org:Organization)-[:On]->(day:Day),
-                  (org)-[:type]->(orgtype),
-                  (org)-[:In]->(loc:Location)
-            WHERE person.nid='{pers_id}'
-            RETURN race, part, day, org, orgtype, loc
-            ORDER BY day.key ASC
-        """.format(pers_id=person_id)
-        cursor = self.graph.run(query)
-        while cursor.forward():
-            rec = cursor.current
-            res_dict = dict(part=dict(rec['part']),
-                            race=dict(rec['race']),
-                            date=dict(rec['day']),
-                            org=dict(rec['org']),
-                            orgtype=dict(rec['orgtype']),
-                            loc=dict(rec['loc']))
-            race4person.append(res_dict)
-        return race4person
 
     def get_startnode(self, end_node=None, rel_type=None):
         """
@@ -423,7 +297,6 @@ class NeoStore:
         stmt = "CREATE CONSTRAINT ON (n:{nid_label}) ASSERT n.nid IS UNIQUE"
         for nid_label in nid_labels:
             self.graph.run(stmt.format(nid_label=nid_label))
-
         return
 
     def node(self, nid):
@@ -440,26 +313,6 @@ class NeoStore:
         selected = self.nodematcher.match(nid=nid)
         node = selected.first()
         return node
-
-    @staticmethod
-    def node_id(node_obj):
-        """
-        py2neo 3.1.2 doesn't have a method to get the ID from a node.
-        Not sure how to get an ID from a node...
-        Advice from Neo4J community seems to be not to use internal Node ID, since this can be reused when nodes are
-        removed.
-        For now each node has an attribute nid which contains a random node ID.
-
-        :param node_obj: Node object
-        :return: ID of the node (integer), or False.
-        """
-        # First check if my object is a node (not sure it is a node, but I am sure it is a sub-graph)
-        if isinstance(node_obj, Node):
-            # OK, my object is a node. Now return the nid attribute
-            return node_obj['nid']
-        else:
-            current_app.logger.error("Node expected, but got object of type {nodetype}".format(nodetype=type(node_obj)))
-            return False
 
     def node_props(self, nid=None):
         """
@@ -493,7 +346,7 @@ class NeoStore:
             current_app.logger.error("Attribute 'nid' missing, required in dictionary.")
             return False
         # So I'm sure that nid is still in the property dictionary
-        if my_node:
+        if isinstance(my_node, Node):
             # Modify properties and add new properties
             for prop in properties:
                 my_node[prop] = properties[prop]
@@ -547,8 +400,8 @@ class NeoStore:
         """
         # obj_node = self.node(nid)
         query = "MATCH (n)--(m) WHERE n.nid='{nid}' return m.nid as m_nid".format(nid=nid)
-        res = self.graph.run(query).data()  # This will return the list of dictionaries with results.
-        if len(res):
+        res = self.get_query_data(query)  # This will return the list of dictionaries with results.
+        if isinstance(res, list):
             return len(res)
         else:
             return False
@@ -647,22 +500,6 @@ class NeoStore:
         query = "MATCH (n) WHERE id(n)={node_id} SET n.nid='{nid}' RETURN n.nid"
         self.graph.run(query.format(node_id=node_id, nid=str(uuid.uuid4())))
         return
-
-
-def nodelist_from_cursor(cursor):
-    """
-    The py2neo Cursor will return a result list that is not necessarily unique. This function gets a cursor from
-    a query where the cypher return argument is a single node. The function will return the list of unique nodes.
-
-    :param cursor: Result of a query with single node per result line.
-    :return: list of unique nodes, or empty list if there are no nodes.
-    """
-    node_list = set()
-    while cursor.forward():
-        current = cursor.current
-        (node, ) = current.values()
-        node_list.add(node)
-    return list(node_list)
 
 
 def validate_node(node, label):

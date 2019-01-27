@@ -131,7 +131,7 @@ class Participant:
         elif person_id and race_id:
             self.race = Race(race_id=race_id)
             self.person = Person(person_id=person_id)
-            self.part_node = ns.get_participant_in_race(pers_id=person_id, race_id=race_id)
+            self.part_node = self.get_node()
             if not self.part_node:
                 current_app.logger.debug("Trying to add previous person to {n}".format(n=self.person.get_name()))
                 # Only add participant if previous participant is defined.
@@ -215,6 +215,25 @@ class Participant:
         :return: Participant Node ID (nid)
         """
         return self.part_node["nid"]
+
+    def get_node(self):
+        """
+        This method will return the participant node.
+
+        :return: Participant node.
+        """
+        query = """
+            MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
+            WHERE pers.nid='{pers_id}' AND race.nid='{race_id}'
+            RETURN part
+        """.format(pers_id=self.get_person_nid(), race_id=self.get_race_nid())
+        res = ns.get_query_data(query)
+        if len(res) > 1:
+            current_app.logger.error("More than one ({nr}) Participant node for Person {pnid} and Race {rnid}"
+                                     .format(pnid=self.get_person_nid(), rnid=self.get_race_nid(), nr=len(res)))
+        elif len(res) == 0:
+            return False
+        return res[0]
 
     def get_person_nid(self):
         """
@@ -463,11 +482,33 @@ class Person:
 
     def get_races4person(self):
         """
-        This method will get a dictionary with information about all the races for the person.
+        This method will get a list of participant information for a person, sorted on date. The information will be
+        provided in a list of dictionaries. The dictionary values are the corresponding node dictionaries.
 
-        :return: Dictionary with all information about the races for the person
+        :return: list of Participant (part),race, date, organization (org) and orgtype and Location (loc) Node
+        dictionaries in date sequence.
         """
-        return ns.get_race4person(self.person_node["nid"])
+        race4person = []
+        query = """
+            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race),
+                  (race)<-[:has]-(org:Organization)-[:On]->(day:Day),
+                  (org)-[:type]->(orgtype),
+                  (org)-[:In]->(loc:Location)
+            WHERE person.nid='{pers_id}'
+            RETURN race, part, day, org, orgtype, loc
+            ORDER BY day.key ASC
+        """.format(pers_id=self.pers_id)
+        cursor = ns.get_query(query)
+        while cursor.forward():
+            rec = cursor.current
+            res_dict = dict(part=dict(rec['part']),
+                            race=dict(rec['race']),
+                            date=dict(rec['day']),
+                            org=dict(rec['org']),
+                            orgtype=dict(rec['orgtype']),
+                            loc=dict(rec['loc']))
+            race4person.append(res_dict)
+        return race4person
 
     def set_name(self, name):
         """
@@ -800,7 +841,7 @@ class Race:
         :return: All participants in the race have the correct points and position.
         """
         race_type = self.get_racetype()
-        node_list = ns.get_participant_seq_list(self.race_node["nid"])
+        node_list = self.get_participant_seq_list()
         if node_list:
             cnt = 0
             for part in node_list:
@@ -884,6 +925,28 @@ class Race:
         :return: org_id
         """
         return self.org.get_org_id()
+
+    def get_participant_seq_list(self):
+        """
+        This method returns the participants for the race in sequence of arrival.
+
+        :return: List of participant nodes for the race in sequence of arrival.
+        """
+        query = """
+            MATCH race_ptn = (race)<-[:participates]-(participant),
+                  participants = (participant)<-[:after*0..]-()
+            WHERE race.nid = '{race_id}'
+            WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
+            WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
+            UNWIND result_coll as result
+            RETURN nodes(result)
+        """.format(race_id=self.get_nid())
+        # Get the result of the query in a recordlist
+        res = ns.get_query_data(query)
+        if not res:
+            return False
+        else:
+            return res[0]["nodes(result)"]
 
     def get_racename(self):
         """
@@ -1089,12 +1152,30 @@ def link_mf(mf, node, rel):
 
 def get_race_list(org_id):
     """
-    This function will return a list of races for an organization ID
+    This function will get an organization nid and return the Races associated with the Organization.
+    The races will be returned as a list of dictionaries with fields race node and mf node.
 
-    :param org_id: nid of the organization
-    :return: List of races (empty list if there are no races).
+    :param org_id: nid of the Organization.
+    :return: List of dictionaries with race and mf nodes sorted on category and mf, or empty list which evaluates to
+    False.
     """
-    return ns.get_race_list(org_id)
+    query = """
+        MATCH (org:Organization)-[:has]->(race:Race)-[:forMF]->(mf:MF)
+        WHERE org.nid = '{org_id}'
+        RETURN race, mf
+        ORDER BY race.seq, mf.name
+    """.format(org_id=org_id)
+    res = self.graph.run(query)
+    # Convert result set in an array of nodes
+    res_arr = []
+    while res.forward():
+        rec = res.current
+        race_nodes = dict(
+            race=rec["race"],
+            mf=rec["mf"]
+        )
+        res_arr.append(race_nodes)
+    return res_arr
 
 
 def races4person(pers_id):
@@ -1107,7 +1188,8 @@ def races4person(pers_id):
     :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
     sequence.
     """
-    recordlist = ns.get_race4person(pers_id)
+    person = Person(pers_id=pers_id)
+    recordlist = person.get_races4person()
     return recordlist
 
 
@@ -1328,7 +1410,7 @@ def results_for_mf(mf):
     :return: Sorted list with tuples (name, points, number of races, nid for person).
     """
     # Wedstrijden
-    res_wedstrijd = ns.points_race(mf=mf, orgtype="Wedstrijd")
+    res_wedstrijd = participation_points(mf=mf, orgtype="Wedstrijd")
     result_list = {}
     for df_line in res_wedstrijd.iterrows():
         rec = df_line[1].to_dict()
@@ -1345,7 +1427,7 @@ def results_for_mf(mf):
         )
         wedstrijd_total[nid] = params
     # Deelname
-    res_deelname = ns.points_race(mf=mf, orgtype="Deelname")
+    res_deelname = participation_points(mf=mf, orgtype="Deelname")
     result_list = {}
     for df_line in res_deelname.iterrows():
         rec = df_line[1].to_dict()
@@ -1396,12 +1478,12 @@ def participant_seq_list(race_id):
     This method will collect the people in a race in sequence of arrival.
 
     :param race_id: nid of the race for which the participants are returned in sequence of arrival.
-
     :return: List of participants items in the race. Each item is a tuple of the person dictionary (from the person
      object) and the participant dictionary (the properties of the participant node). False if no participants in the
      list.
     """
-    node_list = ns.get_participant_seq_list(race_id)
+    race = Race(race_id=race_id)
+    node_list = race.get_participant_seq_list()
     if node_list:
         finisher_list = []
         # If there are finishers, then recordlist has one element, which is a nodelist
@@ -1449,6 +1531,27 @@ def participant_last_id(race_id):
     part_arr = finisher_list.pop()
     part_last = part_arr[0]
     return part_last
+
+
+def participation_points(mf, orgtype):
+    """
+    This method returns all participation points for every person for the specified mf and orgtype (Wedstrijd or
+    Deelname).
+
+    :param mf: Dames / Heren
+    :param orgtype: Wedstrijd / Deelname
+    :return: A dataframe with records having the person_nid and points for each participation for mf and orgtype and for
+    every race.
+    """
+    query = """
+        MATCH (person:Person)-[:mf]->(mf:MF  {name: {mf}}),
+              (person)-[:is]->(part)-[:participates]-(race:Race),
+              (race)<-[:has]-(org:Organization),
+              (org)-[:type]->(orgtype:OrgType {name: {orgtype}})
+        RETURN person.nid as person_nid, part.points as points
+    """
+    res = ns.get_query_df(query, mf=mf, orgtype=orgtype)
+    return res
 
 
 def participant_first_id(race_id):

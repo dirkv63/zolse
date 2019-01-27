@@ -36,17 +36,6 @@ class TestNeoStore(unittest.TestCase):
         loc_node = self.ns.get_node(lbl, **props)
         self.assertFalse(loc_node)
 
-    def test_nodelist_from_cursor(self):
-        query = "MATCH (n:Person) RETURN n"
-        res = self.ns.get_query(query)
-        nodelist = neostore.nodelist_from_cursor(res)
-        self.assertTrue(isinstance(nodelist, list))
-        self.assertTrue(isinstance(nodelist[0], Node))
-        query = "MATCH (n:DoesNotExist) RETURN n"
-        res = self.ns.get_query(query)
-        nodelist = neostore.nodelist_from_cursor(res)
-        self.assertFalse(nodelist)
-
     def test_remove_relation(self):
         nr_nodes = self.ns.get_nodes()
         # First create 2 nodes and a relation
@@ -181,47 +170,17 @@ class TestNeoStore(unittest.TestCase):
         end_nodes = self.ns.get_endnodes(start_node, rel_type)
         self.assertFalse(end_nodes)
 
-    def test_get_race4person(self):
-        lbl = lbl_person
-        props = dict(name="Dirk Vermeylen")
-        person_node = self.ns.get_node(lbl, **props)
-        res = self.ns.get_race4person(person_node["nid"])
-        self.assertTrue(isinstance(res, list))
-        first_race = res[0]
-        self.assertTrue(isinstance(first_race["part"], dict))
-        self.assertTrue(isinstance(first_race["race"], dict))
-        self.assertTrue(isinstance(first_race["date"], dict))
-        self.assertTrue(isinstance(first_race["org"], dict))
-        self.assertTrue(isinstance(first_race["orgtype"], dict))
-        self.assertTrue(isinstance(first_race["loc"], dict))
-        # Test on invalid node
-        lbl = lbl_organization
-        props = dict(name="Veldloop Arendonk")
-        person_node = self.ns.get_node(lbl, **props)
-        res = self.ns.get_race4person(person_node["nid"])
-        self.assertFalse(res)
-        res = self.ns.get_race4person("DoesNotExist")
-        self.assertFalse(res)
-
-    def test_get_race_list(self):
-        # First get org_id for organization
-        lbl = lbl_organization
-        props = dict(name="Veldloop Arendonk")
-        org_node = self.ns.get_node(lbl, **props)
-        race_list = self.ns.get_race_list(org_node["nid"])
-        self.assertTrue(isinstance(race_list, list))
-        first_race = race_list[0]
-        self.assertTrue(isinstance(first_race, dict))
-        self.assertTrue(lbl_race in first_race["race"].labels)
-        self.assertTrue(lbl_mf in first_race["mf"].labels)
-        # Also test False for non-existing organization (other node type or invalid node type)
-        lbl = lbl_person
-        props = dict(name="Dirk Vermeylen")
-        name_node = self.ns.get_node(lbl, **props)
-        race_list = self.ns.get_race_list(name_node["nid"])
-        self.assertFalse(race_list)
-        race_list = self.ns.get_race_list("DoesNotExist")
-        self.assertFalse(race_list)
+    def test_get_nodes_no_nid(self):
+        res = self.ns.get_nodes_no_nid()
+        lbl = "TestNode"
+        props = dict(name="nodeNoNid")
+        component = Node(lbl, **props)
+        self.ns.graph.create(component)
+        new_res = self.ns.get_nodes_no_nid()
+        self.assertEqual(new_res, res+1)
+        self.ns.remove_node(component)
+        rem_res = self.ns.get_nodes_no_nid()
+        self.assertEqual(rem_res, res)
 
     def test_get_startnode(self):
         # First check that I can get a single start node for normal usage.

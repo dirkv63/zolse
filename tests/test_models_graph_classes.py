@@ -8,6 +8,7 @@ from competition import create_app
 from competition.lib import neostore, models_graph as mg
 from competition.lib.neostructure import *
 from config import TestConfig
+from pandas import DataFrame
 from py2neo.data import Node
 
 
@@ -161,37 +162,10 @@ class TestModelGraphClass(unittest.TestCase):
         for key in ["organization", "city", "id", "date", "type"]:
             self.assertTrue(isinstance(rec[key], str))
 
-"""
-    def test_race_add(self):
-        nr_nodes = len(self.ns.get_nodes())
-        # This function tests the organization.
-        name = "Dwars door Hillesheim"
-        city = "Hillesheim_X"
-        ds_str = "1963-07-02"
-        ds = datetime.datetime.strptime(ds_str, "%Y-%m-%d")
-        org_dict = dict(
-            name=name,
-            location=city,
-            datestamp=ds,
-            org_type=False
-        )
-        org = mg.Organization()
-        self.assertTrue(org.add(**org_dict))
-        org_nid = org.get_org_id()
-        # Add Race Seniors Dames
-        # Find node for Category 'Seniors'
-        props = dict(name='Seniors')
-        race_props = dict(
-            mf="vrouw",
-            name=False
-        )
-        rc = mg.Race(org_id=org_nid)
-        rc.add(**race_props)
-        self.assertEqual(rc.get_racename(), "Seniors - Dames")
-        mg.race_delete(rc.get_node()['nid'])
-        mg.organization_delete(org_id=org_nid)
-        self.assertEqual(nr_nodes, len(self.ns.get_nodes()))
-"""
+    def test_participation_ponts(self):
+        res = mg.participation_points(mf="Heren", orgtype="Wedstrijd")
+        self.assertTrue(isinstance(res, DataFrame))
+
 
 if __name__ == "__main__":
     unittest.main()
