@@ -1165,17 +1165,8 @@ def get_race_list(org_id):
         RETURN race, mf
         ORDER BY race.seq, mf.name
     """.format(org_id=org_id)
-    res = self.graph.run(query)
-    # Convert result set in an array of nodes
-    res_arr = []
-    while res.forward():
-        rec = res.current
-        race_nodes = dict(
-            race=rec["race"],
-            mf=rec["mf"]
-        )
-        res_arr.append(race_nodes)
-    return res_arr
+    res = ns.get_query_data(query)
+    return res
 
 
 def races4person(pers_id):
@@ -1188,7 +1179,7 @@ def races4person(pers_id):
     :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
     sequence.
     """
-    person = Person(pers_id=pers_id)
+    person = Person(person_id=pers_id)
     recordlist = person.get_races4person()
     return recordlist
 
@@ -1484,7 +1475,7 @@ def participant_seq_list(race_id):
     """
     race = Race(race_id=race_id)
     node_list = race.get_participant_seq_list()
-    if node_list:
+    if isinstance(node_list, list):
         finisher_list = []
         # If there are finishers, then recordlist has one element, which is a nodelist
         for part in node_list:

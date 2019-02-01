@@ -16,7 +16,6 @@ def create_app(config_class=Config):
     Create an application instance.
 
     :param config_class: Pointer to the configuration file.
-
     :return: the configured application object.
     """
     app = Flask(__name__)

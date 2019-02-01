@@ -43,7 +43,10 @@ class NeoStore:
         if connected_db.config["dbms.active_database"] != os.environ['NEO4J_DB']:
             msg = "Connected to Neo4J database {d}, but expected to be connected to {n}"\
                 .format(d=connected_db.config["dbms.active_database"], n=os.environ['NEO4J_DB'])
-            current_app.logger.fatal(msg)
+            # current_app.logger cannot be used because this method is called during create_app
+            # so current_app is not available now.
+            # current_app.logger.fatal(msg)
+            print(msg)
             raise SystemExit()
         # Connect to Graph
         graph = Graph(**neo4j_config)
