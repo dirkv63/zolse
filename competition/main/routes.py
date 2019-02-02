@@ -258,11 +258,10 @@ def race_list(org_id):
     show the list of existing races for the organization. Races need to be added, removed or modified.
 
     :param org_id: Organization ID
-
     :return:
     """
     race_list_attribs = mg.get_race_list_attribs(org_id)
-    return render_template('organization_races.html', **race_list_attribs)
+    return render_template('race_list.html', **race_list_attribs)
 
 
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
@@ -272,19 +271,29 @@ def race_add(org_id, race_id=None):
     This method allows to add or edit a race. Race name is optional. Category/MF makes label.
 
     :param org_id: nid of the organization to which the race is added.
-
     :param race_id:  nid of the race if edit is required.
-
     :return:
     """
-    form = RaceAdd()
-    if request.method == "POST":
-        # if form.validate_on_submit(): - validate_on_submit doesn't work with Select List.
+    org = mg.Organization(org_id=org_id)
+    org_type = org.get_org_type()
+    if org_type == "Wedstrijd":
+        form = RaceAdd()
+    else:
+        form = DeelnameAdd()
+    if request.method == "GET":
+        race_add_attribs = mg.get_race_list_attribs(org_id)
+        if race_id:
+            race = mg.Race(race_id=race_id)
+            form.name.data = race.get_name()
+            if org_type == "Wedstrijd":
+                form.raceType.data = race.get_racetype()
+            race_add_attribs["racename"] = race.get_racename()
+        race_add_attribs['form'] = form
+        return render_template('race_list.html', **race_add_attribs)
+    else:
         params = dict(
             name=form.name.data,
-            categories=form.category.data,
-            mf=form.mf.data,
-            short=form.cross.data
+            type=form.raceType.data,
         )
         if race_id:
             racename = mg.Race(race_id=race_id).edit(**params)
@@ -294,38 +303,6 @@ def race_add(org_id, race_id=None):
             flash("Race {rl} created in Organization".format(rl=racename), "success")
         # Form validated successfully, clear fields!
         return redirect(url_for('main.race_list', org_id=org_id))
-    else:
-        # Get Form.
-        race_add_attribs = mg.get_race_list_attribs(org_id)
-        if race_id:
-            race = mg.Race(race_id=race_id)
-            form.name.data = race.get_name()
-            form.cross.data = race.is_short()
-            form.category.data = race.get_cat_nids()
-            form.mf.data = race.get_mf_value()
-            race_add_attribs["racename"] = race.get_racename()
-        race_add_attribs['form'] = form
-        return render_template('organization_races.html', **race_add_attribs)
-
-
-@main.route('/races_default/<org_id>')
-@login_required
-def races_default(org_id):
-    """
-    This method will add a list of default races for an organization. No check is done if races exist already.
-    The races need to be modified for combination or short race.
-
-    :param org_id: Organization nid.
-
-    :return: Redirect to the races_list for the organization
-    """
-    nr_races = len(mg.get_race_list(org_id=org_id))
-    if nr_races == 0:
-        mg.races_generate(org_id)
-    else:
-        msg = "Cannot generate races, there are {n} races defined already.".format(n=nr_races)
-        flash(msg, "error")
-    return redirect(url_for('main.race_list', org_id=org_id))
 
 
 @main.route('/race/delete/<race_id>', methods=['GET', 'POST'])
@@ -336,7 +313,6 @@ def race_delete(race_id):
     race.
 
     :param race_id: The Node ID of the race.
-
     :return: True if the race is removed, False otherwise.
     """
     current_app.logger.debug("Delete race {race_id}".format(race_id=race_id))
@@ -357,9 +333,7 @@ def race_edit(org_id, race_id):
     This method will edit an existing race.
 
     :param org_id: The Node ID of the organization.
-
     :param race_id: The Node ID of the race.
-
     :return:
     """
     return race_add(org_id=org_id, race_id=race_id)

@@ -17,19 +17,27 @@
     </table>
 {% endmacro %}
 
-{% macro org_races(races, org_id) %}
+{% macro org_races(races, org_id, org_type) %}
     <table class="table table-hover">
         <tr>
             <th>Wedstrijden</th>
+        {% if org_type == 'Wedstrijd' %}
+            <th>Type</th>
+        {% endif %}
         </tr>
         {% for rec in races %}
 
         <tr>
             <td>
                 <a href="{{ url_for('main.participant_list', race_id=rec['race']['nid']) }}">
-                    {{ rec['race']['racename'] }}
+                    {{ rec['race']['name'] }}
                 </a>
             </td>
+        {% if org_type == 'Wedstrijd' %}
+            <td>
+                {{ rec['type']['name'] }}
+            </td>
+        {% endif %}
         </tr>
         {% endfor %}
     </table>

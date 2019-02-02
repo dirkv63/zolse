@@ -26,10 +26,15 @@ class OrganizationAdd(Form):
 
 
 class RaceAdd(Form):
-    name = StringField('Naam', validators=[wtv.Optional(), wtv.Length(1, 12)])
-    mf = RadioField(choices=[('man', 'jongens/heren'), ('vrouw', 'meisjes/dames')], default='man',
-                    validators=[wtv.InputRequired()])
-    cross = BooleanField('Korte Cross')
+    name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 12)])
+    raceType = RadioField('Type:', choices=[('Hoofdwedstrijd', 'Hoofdwedstrijd'),
+                                            ('Nevenwedstrijd', 'Nevenwedstrijd')], default='Hoofdwedstrijd',
+                          validators=[wtv.InputRequired()])
+    submit = SubmitField('OK')
+
+
+class DeelnameAdd(Form):
+    name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 12)])
     submit = SubmitField('OK')
 
 

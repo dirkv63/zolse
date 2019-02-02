@@ -284,24 +284,6 @@ class NeoStore:
         # Then return the result as a list
         return list(node_set)
 
-    def init_graph(self):
-        """
-        This method will initialize the graph. It will set indices and create nodes required for the application
-        (on condition that the nodes do not exist already).
-
-        :return:
-        """
-        stmt = "CREATE CONSTRAINT ON (n:{0}) ASSERT n.{1} IS UNIQUE"
-        self.graph.run(stmt.format('Location', 'city'))
-        self.graph.run(stmt.format('Person', 'name'))
-        self.graph.run(stmt.format('RaceType', 'name'))
-        self.graph.run(stmt.format('OrgType', 'name'))
-        nid_labels = ['Participant', 'Person', 'Race', 'Organization', 'Location', 'RaceType', 'OrgType']
-        stmt = "CREATE CONSTRAINT ON (n:{nid_label}) ASSERT n.nid IS UNIQUE"
-        for nid_label in nid_labels:
-            self.graph.run(stmt.format(nid_label=nid_label))
-        return
-
     def node(self, nid):
         """
         This method will get a node ID and return a node, or false in case no Node can be associated with the ID.

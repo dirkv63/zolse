@@ -1,3 +1,6 @@
+{#
+This template is used to list races for an organization, to add a race or to edit or delete a race for the organization.
+#}
 {% extends "layout.html" %}
 {% import "bootstrap/wtf.html" as wtf %}
 {% import "macros.html" as macros %}
@@ -6,7 +9,7 @@
     <div class="row">
         <h1>{{ org_label }}</h1>
         <div class="col-md-7">
-            {{ macros.org_races(races, org_id) }}
+            {{ macros.org_races(races, org_id, org_type) }}
         </div>
         {% if form is defined %}
             <div class="col-md-5">
@@ -62,11 +65,6 @@
                 <a href="{{ url_for('main.race_add', org_id=org_id) }}" class="btn btn-default">
                     Wedstrijd toevoegen
                 </a>
-                {% if remove_org is equalto "Yes" %}
-                    <a href="{{ url_for('main.races_default', org_id=org_id) }}" class="btn btn-default">
-                        Default wedstrijden
-                    </a>
-                {% endif %}
             </div>
         </div>
     {% endif %}

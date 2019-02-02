@@ -190,7 +190,7 @@ class TestNeoStore(unittest.TestCase):
         end_node = self.ns.get_node(lbl, **props)
         self.assertTrue(isinstance(end_node, Node))
         self.assertEqual(end_node["city"], my_name)
-        rel_type = org2loc
+        rel_type = organization2location
         start_node = self.ns.get_startnode(end_node, rel_type)
         self.assertTrue(isinstance(start_node, Node))
         self.assertEqual(start_node["name"], "Cross Cup")
