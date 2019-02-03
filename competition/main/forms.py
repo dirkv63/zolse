@@ -33,11 +33,6 @@ class RaceAdd(Form):
     submit = SubmitField('OK')
 
 
-class DeelnameAdd(Form):
-    name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 12)])
-    submit = SubmitField('OK')
-
-
 class ParticipantAdd(Form):
     """
     Form to Add a participant to a race. Timefield is not included. It is not part of wtforms 2 (wait for wtforms

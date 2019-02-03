@@ -696,6 +696,27 @@ class Organization:
         """.format(org_id=self.get_org_id())
         return ns.get_query(query)
 
+    def get_race_main(self):
+        """
+        This method will return main race node, or False if no main race defined for this organization.
+
+        :return: Race node for 'Hoofdwedstrijd' or False if no Hoofdwedstrijd defined for Organization.
+        """
+        if self.get_org_type() == "Deelname":
+            return False
+        else:
+            query = """
+                    MATCH (org:Organization)-[:has]->(race:Race)-[:forType]-(rt:RaceType)
+                    WHERE org.nid={nid}
+                      AND rt.name='Hoofdwestrijd'
+                    RETURN race
+                    """.format(nid=self.org_node["nid"])
+            res = ns.get_query_data(query)
+            if len(res) > 0:
+                return res["race"]
+            else:
+                return False
+
     def get_org_type(self):
         """
         This method will return the organization type(Wedstrijd or Deelname).
@@ -841,7 +862,7 @@ class Race:
         if props["type"] != self.get_racetype():
             # If change to Hoofdwedstrijd - then check to see if there was a Hoofdwedstrijd. Change this to
             # Nevenwedstrijd.
-            $$$
+            pass
         link_mf(mf=props["mf"], node=self.race_node, rel=race2mf)
         return self.race_node["racename"]
 

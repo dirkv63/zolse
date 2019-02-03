@@ -276,10 +276,9 @@ def race_add(org_id, race_id=None):
     """
     org = mg.Organization(org_id=org_id)
     org_type = org.get_org_type()
-    if org_type == "Wedstrijd":
-        form = RaceAdd()
-    else:
-        form = DeelnameAdd()
+    form = RaceAdd()
+    if org_type != "Wedstrijd":
+        del form.raceType
     if request.method == "GET":
         race_add_attribs = mg.get_race_list_attribs(org_id)
         if race_id:
