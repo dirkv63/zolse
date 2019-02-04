@@ -794,14 +794,14 @@ class Organization:
         ns.create_relation(from_node=self.org_node, rel=organization2type, to_node=org_type_node)
         return True
 
-    def set_race_type(self, race_nid=None):
+    def set_race_type(self, race_nid=None, race_type=None):
         """
         This method sets the race type for a specific race or for all races in the organization.
         If Organization is Deelname, then all (race)-[:type]->(raceType) links will be removed.
 
         If Organization is Wedstrijd, then this method will ensure there is maximum one Hoofdwedstrijd.
         Options:
-        1. Organization type changes from Deelname to Wedstrijd => set all races to 'Nevenwedstrijd'
+        1. Organization type changes from Deelname to Wedstrijd (race_nid is None) => set all races to 'Nevenwedstrijd'
         2. Race changes from Hoofdwedstrijd to Nevenwedstrijd => remove relation to Hoofdwedstrijd, set relation to
         Nevenwedstrijd.
         3. Race changes from Nevenwedstrijd to Hoofdwedstrijd. If there was Hoofdwedstrijd, then apply -2- first. Set
@@ -809,7 +809,8 @@ class Organization:
 
         Recalculate points for this organization.
 
-        :param race_nid:
+        :param race_nid: NID for which race type needs to be set.
+        :param race_type: Type for the race.
         :return:
         """
         if self.get_org_type() == "Deelname":
@@ -824,7 +825,27 @@ class Organization:
                 ns.remove_relation(start_node=rec["race"], end_node=["rt"], rel_type=race2type)
         else:
             # Organization type is Wedstrijd
-
+            if not race_nid:
+                # Set all race_types to Nevenwedstrijd - make sure there is no Hoofdwedstrijd defined
+                main_race = self.get_race_main()
+                if isinstance(main_race, Node):
+                    self.set_race_type(race_nid=main_race["nid"], race_type="Deelname")
+                # For all races merge with Deelname racetype.
+                races = ns.get_endnodes(start_node=self.org_node, rel_type=organization2race)
+                neven_node = ns.get_node(lbl_raceType, dict(name="Nevenwedstrijd"))
+                for race in races:
+                    ns.create_relation(from_node=race, rel=race2type, to_node=neven_node)
+            elif race_type == "Hoofdwedstrijd":
+                # If another hoofdwedstrijd was defined, set to nevenwedstrijd
+                main_race = self.get_race_main()
+                if main_race["nid"] != race_nid:
+                    self.set_race_type(race_nid=main_race["nid"], race_type="Deelname")
+                    hoofd_node = ns.get_node(lbl_raceType, dict(name="Hoofdwedstrijd"))
+                    ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=hoofd_node)
+            else:
+                neven_node = ns.get_node(lbl_raceType, dict(name="Nevenwedstrijd"))
+                ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=neven_node)
+        return
 
 
 class Race:
