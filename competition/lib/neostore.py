@@ -438,30 +438,9 @@ class NeoStore:
             self.remove_node(rec["node"])
         return
 
-    def remove_relation(self, start_nid=None, end_nid=None, rel_type=None):
-        """
-        This method will remove the relation rel_type between Node with nid start_nid and Node with nid end_nid.
-        Relation is of type rel_type.
-
-        :param start_nid: Node nid of the start node.
-        :param end_nid: Node nid of the end node.
-        :param rel_type: Type of the relation
-        :return:
-        """
-        # Todo: this method needs to be replaced by remove_relation_node.
-        query = """
-            MATCH (start_node)-[rel_type:{rel_type}]->(end_node)
-            WHERE start_node.nid='{start_nid}'
-              AND end_node.nid='{end_nid}'
-            DELETE rel_type
-        """.format(rel_type=rel_type, start_nid=start_nid, end_nid=end_nid)
-        self.graph.run(query)
-        return
-
-    def remove_relation_node(self, start_node=None, end_node=None, rel_type=None):
+    def remove_relation(self, start_node=None, end_node=None, rel_type=None):
         """
         This method will remove the relation rel_type between start_node and end_node where relation is type rel_type.
-        The goal is to use the
 
         :param start_node:
         :param end_node:

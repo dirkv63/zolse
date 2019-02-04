@@ -168,6 +168,7 @@ class Participant:
                 # This can be linked to a next_arrival. Current participant will break this link
                 next_arrival_nid = prev_arrival_obj.next_runner()
                 if next_arrival_nid:
+                    # Todo - rework to arguments to nodes instead of nids.
                     ns.remove_relation(start_nid=next_arrival_nid, end_nid=prev_arrival_nid, rel_type="after")
             else:
                 current_app.logger.debug("First arrival in the race!")
@@ -776,7 +777,6 @@ class Organization:
         This method will set or update the Organization Type. In case of update Organization Type, then the current link
         needs to be removed and the new link is set.
 
-
         :param org_type: 'Wedstrijd' or 'Deelname"
         :return: True if org_type is set (or changed), False if org_type is not changed.
         """
@@ -793,6 +793,38 @@ class Organization:
         org_type_node = get_org_type_node(org_type)
         ns.create_relation(from_node=self.org_node, rel=organization2type, to_node=org_type_node)
         return True
+
+    def set_race_type(self, race_nid=None):
+        """
+        This method sets the race type for a specific race or for all races in the organization.
+        If Organization is Deelname, then all (race)-[:type]->(raceType) links will be removed.
+
+        If Organization is Wedstrijd, then this method will ensure there is maximum one Hoofdwedstrijd.
+        Options:
+        1. Organization type changes from Deelname to Wedstrijd => set all races to 'Nevenwedstrijd'
+        2. Race changes from Hoofdwedstrijd to Nevenwedstrijd => remove relation to Hoofdwedstrijd, set relation to
+        Nevenwedstrijd.
+        3. Race changes from Nevenwedstrijd to Hoofdwedstrijd. If there was Hoofdwedstrijd, then apply -2- first. Set
+        current race to Hoofdwedstrijd.
+
+        Recalculate points for this organization.
+
+        :param race_nid:
+        :return:
+        """
+        if self.get_org_type() == "Deelname":
+            # Make sure there are no race->raceType links
+            query = """
+            MATCH (org:{lbl_org})-[:{org2race}]->(race:{lbl_race}-[:{race2type}]->(rt:{lbl_rt})
+            RETURN race, rt
+            """.format(lbl_org=lbl_organization, lbl_race=lbl_race, lbl_rt=lbl_raceType,
+                       org2race=organization2race, race2type=race2type)
+            res = ns.get_query_data(query)
+            for rec in res:
+                ns.remove_relation(start_node=rec["race"], end_node=["rt"], rel_type=race2type)
+        else:
+            # Organization type is Wedstrijd
+
 
 
 class Race:
