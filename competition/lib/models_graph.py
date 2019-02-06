@@ -614,7 +614,7 @@ class Organization:
             # First create link to new location
             self.set_location(properties["location"])
             # Then remove link to current location
-            ns.remove_relation_node(start_node=self.org_node, rel_type=organization2location, end_node=curr_loc_node)
+            ns.remove_relation(start_node=self.org_node, rel_type=organization2location, end_node=curr_loc_node)
             # Finally check if current location is still required. Remove if there are no more links.
             ns.remove_node(curr_loc_node)
         # Check Date
@@ -708,7 +708,7 @@ class Organization:
         else:
             query = """
                     MATCH (org:Organization)-[:has]->(race:Race)-[:forType]-(rt:RaceType)
-                    WHERE org.nid={nid}
+                    WHERE org.nid='{nid}'
                       AND rt.name='Hoofdwestrijd'
                     RETURN race
                     """.format(nid=self.org_node["nid"])
@@ -788,7 +788,7 @@ class Organization:
             else:
                 # Org Type needs to change, remove here.
                 org_type_node = ns.get_endnode(start_node=self.org_node, rel_type=organization2type)
-                ns.remove_relation_node(start_node=self.org_node, rel_type=organization2type, end_node=org_type_node)
+                ns.remove_relation(start_node=self.org_node, rel_type=organization2type, end_node=org_type_node)
         # Set the organization type
         org_type_node = get_org_type_node(org_type)
         ns.create_relation(from_node=self.org_node, rel=organization2type, to_node=org_type_node)
@@ -825,26 +825,31 @@ class Organization:
                 ns.remove_relation(start_node=rec["race"], end_node=["rt"], rel_type=race2type)
         else:
             # Organization type is Wedstrijd
-            if not race_nid:
+            if isinstance(race_nid, str):
+                if race_type == "Hoofdwedstrijd":
+                    # If another hoofdwedstrijd was defined, set to other race to nevenwedstrijd
+                    main_race = self.get_race_main()
+                    if isinstance(main_race, Node) and main_race["nid"] != race_nid:
+                        self.set_race_type(race_nid=main_race["nid"], race_type="Nevenwedstrijd")
+                    # No hoofdwedstrijd OR hoofdwedstrijd already set to current race
+                    props = dict(name="Hoofdwedstrijd")
+                    hoofd_node = ns.get_node(lbl_raceType, **props)
+                    ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=hoofd_node)
+                else:
+                    props = dict(name="Nevenwedstrijd")
+                    neven_node = ns.get_node(lbl_raceType, **props)
+                    ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=neven_node)
+            else:
                 # Set all race_types to Nevenwedstrijd - make sure there is no Hoofdwedstrijd defined
                 main_race = self.get_race_main()
                 if isinstance(main_race, Node):
                     self.set_race_type(race_nid=main_race["nid"], race_type="Deelname")
-                # For all races merge with Deelname racetype.
+                # For all races merge with Nevenwedstrijd racetype.
                 races = ns.get_endnodes(start_node=self.org_node, rel_type=organization2race)
-                neven_node = ns.get_node(lbl_raceType, dict(name="Nevenwedstrijd"))
+                props = dict(name="Nevenwedstrijd")
+                neven_node = ns.get_node(lbl_raceType, **props)
                 for race in races:
                     ns.create_relation(from_node=race, rel=race2type, to_node=neven_node)
-            elif race_type == "Hoofdwedstrijd":
-                # If another hoofdwedstrijd was defined, set to nevenwedstrijd
-                main_race = self.get_race_main()
-                if main_race["nid"] != race_nid:
-                    self.set_race_type(race_nid=main_race["nid"], race_type="Deelname")
-                    hoofd_node = ns.get_node(lbl_raceType, dict(name="Hoofdwedstrijd"))
-                    ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=hoofd_node)
-            else:
-                neven_node = ns.get_node(lbl_raceType, dict(name="Nevenwedstrijd"))
-                ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=neven_node)
         return
 
 
@@ -891,9 +896,7 @@ class Race:
         ns.create_relation(from_node=self.org.get_node(), rel=organization2race, to_node=self.race_node)
         # If organization is Wedstrijd, then set race type
         if self.org.get_org_type() == "Wedstrijd":
-            type_props = dict(name=props["type"])
-            type_node = ns.get_node(lbl_raceType, **type_props)
-            ns.create_relation(from_node=self.race_node, rel=race2type, to_node=type_node)
+            self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
         return self.race_node["name"]
 
     def edit(self, **props):
@@ -913,10 +916,8 @@ class Race:
             self.race_node = ns.node_update(**race_props)
         # Check if type needs to be updated
         if props["type"] != self.get_racetype():
-            # If change to Hoofdwedstrijd - then check to see if there was a Hoofdwedstrijd. Change this to
-            # Nevenwedstrijd.
-            pass
-        link_mf(mf=props["mf"], node=self.race_node, rel=race2mf)
+            # Change in race type - handled by organization object.
+            self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
         return self.race_node["racename"]
 
     def calculate_points(self):
@@ -1206,6 +1207,26 @@ def get_race_list_attribs(org_id):
         remove_org=remove_org
     )
     return params
+
+
+def init_graph():
+    """
+    This method will initialize the graph. It will set indices and create nodes required for the application
+    (on condition that the nodes do not exist already).
+
+    :return:
+    """
+    stmt = "CREATE CONSTRAINT ON (n:{0}) ASSERT n.{1} IS UNIQUE"
+    ns.get_query(stmt.format(lbl_location, 'city'))
+    ns.get_query(stmt.format(lbl_person, 'name'))
+    ns.get_query(stmt.format(lbl_raceType, 'name'))
+    ns.get_query(stmt.format(lbl_organizationType, 'name'))
+    nid_labels = [lbl_day, lbl_location, lbl_mf, lbl_organization, lbl_organization, lbl_participant, lbl_person,
+                  lbl_race, lbl_raceType]
+    stmt = "CREATE CONSTRAINT ON (n:{nid_label}) ASSERT n.nid IS UNIQUE"
+    for nid_label in nid_labels:
+        ns.get_query(stmt.format(nid_label=nid_label))
+    return
 
 
 def link_mf(mf, node, rel):

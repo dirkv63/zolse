@@ -12,6 +12,38 @@ from pandas import DataFrame
 from py2neo.data import Node
 
 
+def organization_create():
+    """
+    This method will create an organization for the purpose of testing other methods.
+
+    :return: organization object
+    """
+    name = "Dwars door Hillesheim"
+    city = "Hillesheim_X"
+    ds_str = "1963-07-02"
+    ds = datetime.datetime.strptime(ds_str, "%Y-%m-%d")
+    org_dict = dict(
+        name=name,
+        location=city,
+        datestamp=ds,
+        org_type=False
+    )
+    org = mg.Organization()
+    org.add(**org_dict)
+    return org
+
+
+def organization_delete(org):
+    """
+    This method will delete an organization.
+
+    :param org: Organization object.
+    :return:
+    """
+    mg.organization_delete(org_id=org.get_org_id())
+    return
+
+
 # @unittest.skip("Focus on Coverage")
 class TestModelGraphClass(unittest.TestCase):
 
@@ -22,6 +54,7 @@ class TestModelGraphClass(unittest.TestCase):
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
         self.ns = neostore.NeoStore()
+        mg.init_graph()
 
     def tearDown(self):
         self.app_ctx.pop()
@@ -162,9 +195,21 @@ class TestModelGraphClass(unittest.TestCase):
         for key in ["organization", "city", "id", "date", "type"]:
             self.assertTrue(isinstance(rec[key], str))
 
-    def test_participation_ponts(self):
+    def test_participation_points(self):
         res = mg.participation_points(mf="Heren", orgtype="Wedstrijd")
         self.assertTrue(isinstance(res, DataFrame))
+
+    def test_race(self):
+        org = organization_create()
+        race = mg.Race(org_id=org.get_org_id())
+        props = dict(
+            name="16k",
+            type="Hoofdwedstrijd"
+        )
+        race.add(**props)
+        self.assertEqual(race.get_racetype(), "Hoofdwedstrijd")
+        mg.race_delete(race.get_nid())
+        organization_delete(org=org)
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ class TestNeoStore(unittest.TestCase):
         rel = "TestRel"
         self.ns.create_relation(from_node=node1_node, rel=rel, to_node=node2_node)
         # Then remove the relation
-        self.ns.remove_relation_node(start_node=node1_node, end_node=node2_node, rel_type=rel)
+        self.ns.remove_relation(start_node=node1_node, end_node=node2_node, rel_type=rel)
         self.ns.remove_node_force(node1_node["nid"])
         self.ns.remove_node_force(node2_node["nid"])
         self.assertEqual(self.ns.get_nodes(), nr_nodes)
