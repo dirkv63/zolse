@@ -115,7 +115,7 @@ class TestModelGraphClass(unittest.TestCase):
         # Test label
         self.assertTrue(isinstance(org.get_label(), str))
         # Test Type organizatie
-        self.assertEqual(org.get_org_type(), "Wedstrijd")
+        self.assertEqual(org.get_type(), "Wedstrijd")
         mg.organization_delete(org_id=org_nid)
         self.assertFalse(mg.get_location(loc["nid"]), "Location is removed as part of Organization removal")
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()))
@@ -163,7 +163,7 @@ class TestModelGraphClass(unittest.TestCase):
         # Test label
         self.assertTrue(isinstance(org.get_label(), str))
         # Test Type organizatie
-        self.assertEqual(org.get_org_type(), "Deelname")
+        self.assertEqual(org.get_type(), "Deelname")
         mg.organization_delete(org_id=org_nid)
         self.assertFalse(mg.get_location(loc_nid), "Location is removed as part of Organization removal")
         self.assertEqual(nr_nodes, len(self.ns.get_nodes()), "Number of end nodes not equal to start nodes")
@@ -201,14 +201,24 @@ class TestModelGraphClass(unittest.TestCase):
 
     def test_race(self):
         org = organization_create()
-        race = mg.Race(org_id=org.get_org_id())
+        race1 = mg.Race(org_id=org.get_org_id())
         props = dict(
             name="16k",
             type="Hoofdwedstrijd"
         )
-        race.add(**props)
-        self.assertEqual(race.get_racetype(), "Hoofdwedstrijd")
-        mg.race_delete(race.get_nid())
+        race1.add(**props)
+        self.assertEqual(race1.get_racetype(), "Hoofdwedstrijd")
+        # Create new race, set to 'Hoofdwedstrijd'. Race 1 needs to change to Nevenwedstrijd.
+        race2 = mg.Race(org_id=org.get_org_id())
+        props = dict(
+            name="14k",
+            type="Hoofdwedstrijd"
+        )
+        race2.add(**props)
+        self.assertEqual(race2.get_racetype(), "Hoofdwedstrijd")
+        self.assertEqual(race1.get_racetype(), "Nevenwedstrijd")
+        mg.race_delete(race1.get_nid())
+        mg.race_delete(race2.get_nid())
         organization_delete(org=org)
 
 

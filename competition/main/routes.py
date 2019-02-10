@@ -196,7 +196,7 @@ def organization_add(org_id=None):
         name = org.get_name()
         location = org.get_location()["nid"]
         datestamp = org.get_date()["key"]
-        org_type = org.get_org_type()
+        org_type = org.get_type()
         if org_type == "Deelname":
             org_type_flag = True
         else:
@@ -268,16 +268,16 @@ def race_list(org_id):
 @login_required
 def race_add(org_id, race_id=None):
     """
-    This method allows to add or edit a race. Race name is optional. Category/MF makes label.
+    This method allows to add or edit a race. Race name is optional.
 
     :param org_id: nid of the organization to which the race is added.
     :param race_id:  nid of the race if edit is required.
     :return:
     """
     org = mg.Organization(org_id=org_id)
-    org_type = org.get_org_type()
+    org_type = org.get_type()
     form = RaceAdd()
-    if org_type != "Wedstrijd":
+    if org_type == "Deelname":
         del form.raceType
     if request.method == "GET":
         race_add_attribs = mg.get_race_list_attribs(org_id)
@@ -290,10 +290,12 @@ def race_add(org_id, race_id=None):
         race_add_attribs['form'] = form
         return render_template('race_list.html', **race_add_attribs)
     else:
-        params = dict(
-            name=form.name.data,
-            type=form.raceType.data,
-        )
+        # Method is Post
+        params = {'name': form.name.data}
+        try:
+            params['type'] = form.raceType.data
+        except NameError:
+            pass
         if race_id:
             racename = mg.Race(race_id=race_id).edit(**params)
             flash("Race {rl} modified in Organization".format(rl=racename), "success")
@@ -351,7 +353,7 @@ def participant_list(race_id):
         org_id=race.get_org_id(),
         race_id=race_id
     )
-    finishers = mg.participant_seq_list(race_id)
+    finishers = race.part_person_seq_list()
     if finishers:
         param_dict['finishers'] = finishers
     return render_template('participant_list.html', **param_dict)
@@ -362,12 +364,11 @@ def participant_list(race_id):
 def participant_add(race_id):
     """
     This method will add a person to a race. The previous runner (earlier arrival) is selected from drop-down list.
-    By default the person is appended as the last position in the race, so the previous person was the last one in the
-    race. First position is specified as previous runner equals -1.
+    By default the participant is appended as the last position in the race, so the previous person was the last one in
+    the race. First position is specified as previous runner equals -1.
 
     :param race_id: ID of the race.
-
-    :return: The person is added or modified as a participant to the race.
+    :return: The person added or modified as a participant to the race.
     """
     race = mg.Race(race_id=race_id)
     race_label = race.get_label()
@@ -389,19 +390,19 @@ def participant_add(race_id):
     else:
         # Get method, initialize page.
         org_id = race.get_org_id()
-        part_last = mg.participant_last_id(race_id)
+        part_last = race.part_person_last_id()
         # Initialize Form
         form = ParticipantAdd(prev_runner=part_last)
         next_part_nodes = race.get_next_part()
-        form.name.choices = [(x["nid"], x["name"]) for x in next_part_nodes]
-        form.prev_runner.choices = mg.participant_after_list(race_id)
+        form.name.choices = [(x["person"]["nid"], x["person"]["name"]) for x in next_part_nodes]
+        form.prev_runner.choices = race.part_person_after_list()
         param_dict = dict(
             form=form,
             race_id=race_id,
             race_label=race_label,
             org_id=org_id
         )
-        finishers = mg.participant_seq_list(race_id)
+        finishers = race.part_person_seq_list()
         if finishers:
             param_dict['finishers'] = finishers
         return render_template('participant_add.html', **param_dict)
@@ -442,7 +443,7 @@ def participant_edit(part_id):
         # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
         part_props = part.get_props()
         form = ParticipantEdit(**part_props)
-        finishers = mg.participant_seq_list(race_id)
+        finishers = race.part_person_seq_list()
         # There must be finishers, since I can update one of them
         return render_template('participant_edit.html', form=form, race_id=race_id, finishers=finishers,
                                race_label=race_label, org_id=org_id, person=person_dict)
@@ -480,7 +481,6 @@ def participant_remove(race_id, pers_id):
 @main.route('/result_select_cat/<mf>', methods=['GET'])
 def result_select_cat(mf):
     params = dict(
-        categories=mg.get_category_list(),
         mf=mf
     )
     return render_template("result_select_cat.html", **params)
@@ -489,12 +489,10 @@ def result_select_cat(mf):
 @main.route('/result/<mf>/<cat>/', methods=['GET'])
 @main.route('/result/<mf>/<cat>/<person_id>')
 def results(mf, cat, person_id=None):
-    result_set = mg.results_for_mf(mf=mf, cat=cat)
-    cat_name = mg.get_category_name(cat)
+    result_set = mg.results_for_mf(mf=mf)
     param_dict = dict(
         result_set=result_set,
         cat_nid=cat,
-        cat=cat_name,
         mf=mf
     )
     if person_id:

@@ -175,7 +175,7 @@ class Participant:
                 # This participant is the first one in the race. Find the next participant.
                 # Be careful, method 'participant_first_id' requires valid chain. So this needs to run before
                 # set_part_race()
-                first_arrival_in_race = participant_first_id(self.race.get_nid())
+                first_arrival_in_race = self.race.part_person_first_id()
                 prev_arrival_nid = False
                 # Get participant nid for person nid first arrival.
                 next_arrival_obj = Participant(race_id=self.race.get_nid(), person_id=first_arrival_in_race)
@@ -570,9 +570,9 @@ class Organization:
         self.set_date(org_dict["datestamp"])
         # Set Organization Type
         if org_dict['org_type']:
-            self.set_org_type("Deelname")
+            self.set_type(def_deelname)
         else:
-            self.set_org_type("Wedstrijd")
+            self.set_type(def_wedstrijd)
         return True
 
     def edit(self, **properties):
@@ -590,10 +590,10 @@ class Organization:
         """
         # Check Organization Type
         if properties['org_type']:
-            org_type = "Deelname"
+            org_type = def_deelname
         else:
-            org_type = "Wedstrijd"
-        self.set_org_type(org_type=org_type)
+            org_type = def_wedstrijd
+        self.set_type(org_type=org_type)
         """
         if self.set_org_type(org_type):
             # Organization type changed, so re-calculate points for all races in the organization
@@ -703,22 +703,26 @@ class Organization:
 
         :return: Race node for 'Hoofdwedstrijd' or False if no Hoofdwedstrijd defined for Organization.
         """
-        if self.get_org_type() == "Deelname":
+        if self.get_type() == def_deelname:
             return False
         else:
             query = """
-                    MATCH (org:Organization)-[:has]->(race:Race)-[:forType]-(rt:RaceType)
+                    MATCH (org:{lbl_org})-[:{org2race}]->(race:{lbl_race})-[:{race2type}]->(rt:{lbl_rt})
                     WHERE org.nid='{nid}'
-                      AND rt.name='Hoofdwestrijd'
+                      AND rt.name='{def_hoofd}'
                     RETURN race
-                    """.format(nid=self.org_node["nid"])
+                    """.format(nid=self.org_node["nid"],
+                               lbl_org=lbl_organization, lbl_race=lbl_race, lbl_rt=lbl_raceType,
+                               org2race=organization2race, race2type=race2type,
+                               def_hoofd=def_hoofdwedstrijd)
+            current_app.logger.debug(query)
             res = ns.get_query_data(query)
             if len(res) > 0:
-                return res["race"]
+                return res[0]["race"]
             else:
                 return False
 
-    def get_org_type(self):
+    def get_type(self):
         """
         This method will return the organization type(Wedstrijd or Deelname).
 
@@ -747,7 +751,7 @@ class Organization:
             if ds != curr_ds:
                 current_app.logger.debug("Trying to set date from {curr_ds} to {ds}".format(curr_ds=curr_ds, ds=ds))
                 # Remove current link from organization to date
-                ns.remove_relation_node(start_node=self.org_node, end_node=curr_ds_node, rel_type=organization2date)
+                ns.remove_relation(start_node=self.org_node, end_node=curr_ds_node, rel_type=organization2date)
                 # Check if date (day, month, year) can be removed.
                 # Don't remove single date, clear all dates that can be removed. This avoids the handling of key
                 # because date nodes don't have a nid.
@@ -772,17 +776,18 @@ class Organization:
         ns.create_relation(from_node=self.org_node, to_node=loc_node, rel=organization2location)
         return
 
-    def set_org_type(self, org_type):
+    def set_type(self, org_type):
         """
         This method will set or update the Organization Type. In case of update Organization Type, then the current link
         needs to be removed and the new link is set.
+        Method set_race_type is called after setting the org type, to guarantee that the race links are OK.
 
         :param org_type: 'Wedstrijd' or 'Deelname"
         :return: True if org_type is set (or changed), False if org_type is not changed.
         """
         # Todo: Add link to recalculate points in the races (this link is in org edit!)
-        if self.get_org_type():
-            if self.get_org_type == org_type:
+        if self.get_type():
+            if self.get_type == org_type:
                 # All set, return
                 return False
             else:
@@ -792,6 +797,7 @@ class Organization:
         # Set the organization type
         org_type_node = get_org_type_node(org_type)
         ns.create_relation(from_node=self.org_node, rel=organization2type, to_node=org_type_node)
+        self.set_race_type()
         return True
 
     def set_race_type(self, race_nid=None, race_type=None):
@@ -813,40 +819,44 @@ class Organization:
         :param race_type: Type for the race.
         :return:
         """
-        if self.get_org_type() == "Deelname":
+        if self.get_type() == def_deelname:
             # Make sure there are no race->raceType links
             query = """
-            MATCH (org:{lbl_org})-[:{org2race}]->(race:{lbl_race}-[:{race2type}]->(rt:{lbl_rt})
+            MATCH (org:{lbl_org})-[:{org2race}]->(race:{lbl_race})-[:{race2type}]->(rt:{lbl_rt})
             RETURN race, rt
             """.format(lbl_org=lbl_organization, lbl_race=lbl_race, lbl_rt=lbl_raceType,
                        org2race=organization2race, race2type=race2type)
             res = ns.get_query_data(query)
             for rec in res:
-                ns.remove_relation(start_node=rec["race"], end_node=["rt"], rel_type=race2type)
+                ns.remove_relation(start_node=rec["race"], end_node=rec["rt"], rel_type=race2type)
         else:
             # Organization type is Wedstrijd
             if isinstance(race_nid, str):
-                if race_type == "Hoofdwedstrijd":
-                    # If another hoofdwedstrijd was defined, set to other race to nevenwedstrijd
+                # Remove current relation - then set new relation
+                current_type = ns.get_endnode(start_node=ns.node(race_nid), rel_type=race2type)
+                if isinstance(current_type, Node):
+                    ns.remove_relation(start_node=ns.node(race_nid), rel_type=race2type, end_node=current_type)
+                if race_type == def_hoofdwedstrijd:
+                    # If another hoofdwedstrijd was defined, set other race to nevenwedstrijd
                     main_race = self.get_race_main()
-                    if isinstance(main_race, Node) and main_race["nid"] != race_nid:
-                        self.set_race_type(race_nid=main_race["nid"], race_type="Nevenwedstrijd")
+                    if isinstance(main_race, Node):
+                        self.set_race_type(race_nid=main_race["nid"], race_type=def_nevenwedstrijd)
                     # No hoofdwedstrijd OR hoofdwedstrijd already set to current race
-                    props = dict(name="Hoofdwedstrijd")
+                    props = dict(name=def_hoofdwedstrijd)
                     hoofd_node = ns.get_node(lbl_raceType, **props)
                     ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=hoofd_node)
                 else:
-                    props = dict(name="Nevenwedstrijd")
+                    props = dict(name=def_nevenwedstrijd)
                     neven_node = ns.get_node(lbl_raceType, **props)
                     ns.create_relation(from_node=ns.node(race_nid), rel=race2type, to_node=neven_node)
             else:
                 # Set all race_types to Nevenwedstrijd - make sure there is no Hoofdwedstrijd defined
                 main_race = self.get_race_main()
                 if isinstance(main_race, Node):
-                    self.set_race_type(race_nid=main_race["nid"], race_type="Deelname")
+                    self.set_race_type(race_nid=main_race["nid"], race_type=def_deelname)
                 # For all races merge with Nevenwedstrijd racetype.
                 races = ns.get_endnodes(start_node=self.org_node, rel_type=organization2race)
-                props = dict(name="Nevenwedstrijd")
+                props = dict(name=def_nevenwedstrijd)
                 neven_node = ns.get_node(lbl_raceType, **props)
                 for race in races:
                     ns.create_relation(from_node=race, rel=race2type, to_node=neven_node)
@@ -895,7 +905,7 @@ class Race:
         # Add Race Node to Organization
         ns.create_relation(from_node=self.org.get_node(), rel=organization2race, to_node=self.race_node)
         # If organization is Wedstrijd, then set race type
-        if self.org.get_org_type() == "Wedstrijd":
+        if self.org.get_type() == def_wedstrijd:
             self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
         return self.race_node["name"]
 
@@ -914,10 +924,12 @@ class Race:
                 name=props["name"]
             )
             self.race_node = ns.node_update(**race_props)
-        # Check if type needs to be updated
-        if props["type"] != self.get_racetype():
-            # Change in race type - handled by organization object.
-            self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
+        # Check if type needs to be updated if organization type is Wedstrijd. In case of Deelname, then racetype has
+        # been removed already.
+        if self.org.get_type() == def_wedstrijd:
+            if props["type"] != self.get_racetype():
+                # Change in race type - handled by organization object.
+                self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
         return self.race_node["racename"]
 
     def calculate_points(self):
@@ -933,11 +945,11 @@ class Race:
             cnt = 0
             for part in node_list:
                 cnt += 1
-                if race_type == "Wedstrijd":
+                if race_type == def_wedstrijd:
                     points = points_race(5)
-                elif race_type == "Nevenwedstrijd":
+                elif race_type == def_nevenwedstrijd:
                     points = points_race(cnt)
-                elif race_type == "Deelname":
+                elif race_type == def_deelname:
                     points = 20
                 else:
                     current_app.logger.error("Race Type {rt} not defined.".format(rt=race_type))
@@ -950,18 +962,21 @@ class Race:
 
     def get_next_part(self):
         """
-        This method will get the list of people that need to be added as participant to the race. So these are people in
-        race categories and MF that are not listed as participant yet.
+        This method will get the list of people that can be added as participant to the race. So these are people not
+        listed as participant yet.
 
-        :return: list of next participant nodes
+        :return: list of possible next participants
         """
         query = """
-            MATCH (org:Organization)-[:has]->(race:Race)-[:forMF]-(mf:MF)<-[:mf]-(person)
-            WHERE race.nid='{race_id}'
-            AND NOT EXISTS ((person)-[:is]->(:Participant)-[:participates]->(:Race)<-[:has]-(org:Organization))
-            RETURN distinct person order by person.name
-        """.format(race_id=self.get_nid())
-        res = ns.get_query(query)
+          MATCH (person:{lbl_person}), (org:{lbl_org} {{nid: '{org_nid}'}})
+          WHERE NOT EXISTS ((person)-[:{person2part}]->(:{lbl_part})-[:{part2race}]->(:{lbl_race})<-[:{org2race}]-(org))
+          RETURN person 
+          ORDER BY person.name
+        """.format(lbl_person=lbl_person, lbl_part=lbl_participant, lbl_race=lbl_race, lbl_org=lbl_organization,
+                   person2part=person2participant, part2race=participant2race, org2race=organization2race,
+                   org_nid=self.get_org_id())
+        current_app.logger.debug(query)
+        res = ns.get_query_data(query)
         return res
 
     def get_label(self):
@@ -1056,6 +1071,72 @@ class Race:
         else:
             # race_type not defined for race, so it must be 'Deelname'.
             return False
+
+    def part_person_seq_list(self):
+        """
+        This method add person information to the participant sequence list.
+
+        :return: List of participant items in the race. Each item is a tuple of the person dictionary (from the person
+        object) and the participant dictionary (the properties of the participant node). False if there are no
+        participants in the list.
+        """
+        node_list = self.get_participant_seq_list()
+        if isinstance(node_list, list):
+            finisher_list = []
+            # If there are finishers, then recordlist has one element, which is a nodelist
+            for part in node_list:
+                part_obj = Participant(part_id=part["nid"])
+                person_obj = Person(person_id=part_obj.get_person_nid())
+                person_dict = person_obj.get_dict()
+                pers_part_tuple = (person_dict, dict(part))
+                finisher_list.append(pers_part_tuple)
+            return finisher_list
+        else:
+            return False
+
+    def part_person_after_list(self):
+        """
+        This method will return the participant sequence list as a SelectField list. It will call part_person_seq_list
+        and 'prepend' a value for 'eerste aankomer' (value -1).
+
+        :return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
+        'eerste aankomer'.
+        """
+        eerste = [-1, 'Eerste aankomst']
+        finisher_tuple = self.part_person_seq_list()
+        if finisher_tuple:
+            finisher_list = [[person['nid'], person['label']] for (person, part) in finisher_tuple]
+            finisher_list.insert(0, eerste)
+        else:
+            finisher_list = [eerste]
+        return finisher_list
+
+    def part_person_first_id(self):
+        """
+        This method will get the ID of the first person in the race.
+
+        :return: Node ID of the first person so far in the race, False if no participant registered for this race.
+        """
+        finisher_tuple = self.part_person_seq_list()
+        if finisher_tuple:
+            (person, part) = finisher_tuple[0]
+            person_id = person['nid']
+            return person_id
+        else:
+            return False
+
+    def part_person_last_id(self):
+        """
+        This method will return the nid of the last person in the race. It calls part_person_after_list and fetches
+        the ID of the last runner. This way no special treatment is required in case there are no participants. The ID
+        of the last runner will redirect to -1 then.
+
+        :return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
+        """
+        finisher_list = self.part_person_after_list()
+        part_arr = finisher_list.pop()
+        part_last = part_arr[0]
+        return part_last
 
     def set_org(self):
         """
@@ -1202,7 +1283,7 @@ def get_race_list_attribs(org_id):
     params = dict(
         org_id=org_id,
         org_label=org.get_label(),
-        org_type=org.get_org_type(),
+        org_type=org.get_type(),
         races=races,
         remove_org=remove_org
     )
@@ -1226,6 +1307,17 @@ def init_graph():
     stmt = "CREATE CONSTRAINT ON (n:{nid_label}) ASSERT n.nid IS UNIQUE"
     for nid_label in nid_labels:
         ns.get_query(stmt.format(nid_label=nid_label))
+    # Organization type nodes and Race type nodes are required for empty database
+    # Organization
+    for name in [def_wedstrijd, def_deelname]:
+        props = dict(name=name)
+        if not ns.get_node(lbl_organizationType, **props):
+            ns.create_node(lbl_organizationType, **props)
+    # Race
+    for name in [def_hoofdwedstrijd, def_nevenwedstrijd]:
+        props = dict(name=name)
+        if not ns.get_node(lbl_raceType, **props):
+            ns.create_node(lbl_raceType, **props)
     return
 
 
@@ -1247,7 +1339,7 @@ def link_mf(mf, node, rel):
     if isinstance(current_mf, Node):
         if current_mf["name"] != mf_name:
             # Remove link to current node
-            ns.remove_relation_node(start_node=node, end_node=current_mf, rel_type=rel)
+            ns.remove_relation(start_node=node, end_node=current_mf, rel_type=rel)
         else:
             current_app.logger.info("No changes required...")
             # Link from race to mf exist, all OK!
@@ -1269,11 +1361,15 @@ def get_race_list(org_id):
     evaluates to False.
     """
     query = """
-        MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(type:RaceType)
+        MATCH (org:{lbl_org})-[:{org2race}]->(race:{lbl_race})
         WHERE org.nid = '{org_id}'
+        OPTIONAL MATCH (race)-[:{race2type}]->(type:{lbl_rt})
         RETURN race, type
         ORDER BY type.name, race.name
-    """.format(org_id=org_id)
+    """.format(org_id=org_id,
+               lbl_org=lbl_organization, lbl_race=lbl_race, lbl_rt=lbl_raceType,
+               org2race=organization2race, race2type=race2type)
+    current_app.logger.debug(query)
     res = ns.get_query_data(query)
     return res
 
@@ -1457,7 +1553,7 @@ def results_for_mf(mf):
     :return: Sorted list with tuples (name, points, number of races, nid for person).
     """
     # Wedstrijden
-    res_wedstrijd = participation_points(mf=mf, orgtype="Wedstrijd")
+    res_wedstrijd = participation_points(mf=mf, orgtype=def_wedstrijd)
     result_list = {}
     for df_line in res_wedstrijd.iterrows():
         rec = df_line[1].to_dict()
@@ -1474,7 +1570,7 @@ def results_for_mf(mf):
         )
         wedstrijd_total[nid] = params
     # Deelname
-    res_deelname = participation_points(mf=mf, orgtype="Deelname")
+    res_deelname = participation_points(mf=mf, orgtype=def_deelname)
     result_list = {}
     for df_line in res_deelname.iterrows():
         rec = df_line[1].to_dict()
@@ -1520,64 +1616,6 @@ def results_for_mf(mf):
     return result_sorted
 
 
-def participant_seq_list(race_id):
-    """
-    This method will collect the people in a race in sequence of arrival.
-
-    :param race_id: nid of the race for which the participants are returned in sequence of arrival.
-    :return: List of participants items in the race. Each item is a tuple of the person dictionary (from the person
-     object) and the participant dictionary (the properties of the participant node). False if no participants in the
-     list.
-    """
-    race = Race(race_id=race_id)
-    node_list = race.get_participant_seq_list()
-    if isinstance(node_list, list):
-        finisher_list = []
-        # If there are finishers, then recordlist has one element, which is a nodelist
-        for part in node_list:
-            part_obj = Participant(part_id=part["nid"])
-            person_obj = Person(person_id=part_obj.get_person_nid())
-            person_dict = person_obj.get_dict()
-            pers_part_tuple = (person_dict, dict(part))
-            finisher_list.append(pers_part_tuple)
-        return finisher_list
-    else:
-        return False
-
-
-def participant_after_list(race_id):
-    """
-    This method will return the participant sequence list as a SelectField list. It will call participant_seq_list
-    and 'prepend' a value for 'eerste aankomer' (value -1).
-
-    :param race_id: Node ID of the race
-    :return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
-    'eerste aankomer'.
-    """
-    eerste = [-1, 'Eerste aankomst']
-    finisher_tuple = participant_seq_list(race_id)
-    if finisher_tuple:
-        finisher_list = [[person['nid'], person['label']] for (person, part) in finisher_tuple]
-        finisher_list.insert(0, eerste)
-    else:
-        finisher_list = [eerste]
-    return finisher_list
-
-
-def participant_last_id(race_id):
-    """
-    This method will return the nid of the last participant in the race. It calls check participant_after_list and
-    fetches the last ID of the runner. This way no special treatment is required in case there are no participants. The
-    ID of the last runner will redirect to -1 then.
-
-    :param race_id: Node nid of the race.
-    :return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
-    """
-    finisher_list = participant_after_list(race_id)
-    part_arr = finisher_list.pop()
-    part_last = part_arr[0]
-    return part_last
-
 
 def participation_points(mf, orgtype):
     """
@@ -1599,21 +1637,6 @@ def participation_points(mf, orgtype):
     res = ns.get_query_df(query, mf=mf, orgtype=orgtype)
     return res
 
-
-def participant_first_id(race_id):
-    """
-    This method will get the ID of the first person in the race.
-
-    :param race_id: Node ID of the race.
-    :return: Node ID of the first person so far in the race, False if no participant registered for this race.
-    """
-    finisher_tuple = participant_seq_list(race_id)
-    if finisher_tuple:
-        (person, part) = finisher_tuple[0]
-        person_id = person['nid']
-        return person_id
-    else:
-        return False
 
 
 def remove_node_force(node_id):

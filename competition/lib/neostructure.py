@@ -23,3 +23,7 @@ race2type = "type"
 
 # Definitions
 def_not_defined = "Not defined"
+def_hoofdwedstrijd = "Hoofdwedstrijd"
+def_nevenwedstrijd = "Nevenwedstrijd"
+def_wedstrijd = "Wedstrijd"
+def_deelname = "Deelname"
