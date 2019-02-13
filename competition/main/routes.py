@@ -146,11 +146,7 @@ def person_delete(pers_id):
     :return: person_list
     """
     person = mg.Person(pers_id)
-    if person.active():
-        current_app.logger.warning("Request to delete id {pers_id} but person participates in races"
-                                   .format(pers_id=pers_id))
-    else:
-        mg.remove_node_force(pers_id)
+    person.remove()
     return redirect(url_for('main.person_list'))
 
 
@@ -407,6 +403,9 @@ def participant_add(race_id):
             if form.data[prop]:
                 props[prop] = form.data[prop]
         part.set_props(**props)
+        # Get organization, recalculate points
+        org = mg.Organization(org_id=race.get_org_id())
+        org.calculate_points()
         return redirect(url_for('main.participant_add', race_id=race_id))
 
 
@@ -463,6 +462,9 @@ def participant_remove(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.delete()
+    org_id = mg.get_org_id(race_id)
+    org = mg.Organization(org_id=org_id)
+    org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 
@@ -478,6 +480,9 @@ def participant_up(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.up()
+    org_id = mg.get_org_id(race_id)
+    org = mg.Organization(org_id=org_id)
+    org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 
@@ -493,6 +498,9 @@ def participant_down(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.down()
+    org_id = mg.get_org_id(race_id)
+    org = mg.Organization(org_id=org_id)
+    org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 

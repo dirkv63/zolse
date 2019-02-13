@@ -18,7 +18,7 @@ mf_tx = dict(
 mf_tx_inv = {y: x for x, y in mf_tx.items()}
 
 # Calculate points
-points_per_deelname = 20
+points_deelname = 20
 
 
 class User(UserMixin):
@@ -528,6 +528,18 @@ class Person:
             race4person.append(res_dict)
         return race4person
 
+    def remove(self):
+        """
+        Remove the person node if no longer active. The person object is no longer valid.
+
+        :return:
+        """
+        if self.active():
+            current_app.logger.warning("Cannot remove {name}, still active!".format(name=self.get_name()))
+        else:
+            ns.remove_node_force(self.get_nid())
+        return
+
     def set_name(self, name):
         """
         This method will update a person name to a new name.
@@ -632,6 +644,18 @@ class Organization:
         # Check Date
         self.set_date(ds=properties["datestamp"])
         return True
+
+    def calculate_points(self):
+        """
+        Calculate points for every race in the organization.
+
+        :return:
+        """
+        races = [item["race"] for item in get_race_list(self.get_org_id())]
+        for race_node in races:
+            race = Race(race_node["nid"])
+            race.calculate_points()
+        return
 
     def get_label(self):
         """
@@ -811,6 +835,7 @@ class Organization:
         org_type_node = get_org_type_node(org_type)
         ns.create_relation(from_node=self.org_node, rel=organization2type, to_node=org_type_node)
         self.set_race_type()
+        self.calculate_points()
         return True
 
     def set_race_type(self, race_nid=None, race_type=None):
@@ -920,6 +945,7 @@ class Race:
         # If organization is Wedstrijd, then set race type
         if self.org.get_type() == def_wedstrijd:
             self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
+            self.org.calculate_points()
         return self.race_node["name"]
 
     def edit(self, **props):
@@ -943,6 +969,7 @@ class Race:
             if props["type"] != self.get_racetype():
                 # Change in race type - handled by organization object.
                 self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
+                self.org.calculate_points()
         return self.race_node["name"]
 
     def calculate_points(self):
@@ -954,19 +981,25 @@ class Race:
         """
         race_type = self.get_racetype()
         node_list = self.get_participant_seq_list()
-        if node_list:
+        main_race_node = self.org.get_race_main()
+        if isinstance(main_race_node, Node):
+            main_race = Race(race_id=main_race_node["nid"])
+            main_race_parts = len(main_race.get_participant_seq_list())
+        else:
+            main_race_parts = 0
+        if isinstance(node_list, list):
             cnt = 0
             for part in node_list:
-                cnt += 1
                 if race_type == def_wedstrijd:
-                    points = points_race(5)
-                elif race_type == def_nevenwedstrijd:
                     points = points_race(cnt)
+                elif race_type == def_nevenwedstrijd:
+                    points = points_race(main_race_parts)
                 elif race_type == def_deelname:
-                    points = 20
+                    points = points_deelname
                 else:
                     current_app.logger.error("Race Type {rt} not defined.".format(rt=race_type))
                     points = 20
+                cnt += 1
                 rel_pos = cnt
                 # Set points for participant - Participant node is identified on nid.
                 props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
@@ -1064,10 +1097,10 @@ class Race:
         current_app.logger.info(query)
         # Get the result of the query in a recordlist
         res = ns.get_query_data(query)
-        if not res:
-            return False
-        else:
+        if len(res) > 0:
             return res[0]["nodes(result)"]
+        else:
+            return False
 
     def get_racename(self):
         """
@@ -1527,21 +1560,18 @@ def get_mf_value(node, rel):
 def points_race(pos):
     """
     This method will return points for a specific position in a regular race.
-    Points are in sequence of arrival: 25 - 20 - 18 - 16 - 15 - ...
+    Points are in sequence of arrival: 50 - 45 - 40 - 35 - 34 - 33 - 32 - ... - 15
 
     :param pos: Position in the race
-    :return: Points associated for this position. Minimum is one point.
+    :return: Points associated for this position. Minimum is 15 points.
     """
-    if pos == 1:
-        points = 25
-    elif pos == 2:
-        points = 20
-    elif pos == 3:
-        points = 18
-    else:
-        points = 20-pos
-    if points < 1:
-        points = 1
+    racepoints = [50, 45, 40, 35]
+    try:
+        points = racepoints[pos]
+    except IndexError:
+        points = racepoints[-1] - ((pos+1) - len(racepoints))
+    if points < 15:
+        points = 15
     return points
 
 
@@ -1637,7 +1667,6 @@ def results_for_mf(mf):
     return result_sorted
 
 
-
 def participation_points(mf, orgtype):
     """
     This method returns all participation points for every person for the specified mf and orgtype (Wedstrijd or
@@ -1657,7 +1686,6 @@ def participation_points(mf, orgtype):
     """
     res = ns.get_query_df(query, mf=mf, orgtype=orgtype)
     return res
-
 
 
 def remove_node_force(node_id):
