@@ -396,7 +396,7 @@ class Person:
 
     def add(self, **props):
         """
-        Attempt to add the participant with name 'name'. The name must be unique. Person object is set to current
+        Attempt to add the person with name 'name'. The name must be unique. Person object is set to current
         participant. Name is set in this procedure, ID is set in the find procedure.
 
         :param props: Properties (in dict) for the person. Name, mf are mandatory.
@@ -410,7 +410,7 @@ class Person:
             person_props = dict(
                 name=props["name"]
             )
-            self.person_node = ns.create_node("Person", **person_props)
+            self.person_node = ns.create_node(lbl_person, **person_props)
             # Link to MF
             link_mf(props["mf"], self.person_node, person2mf)
             return True
@@ -1372,6 +1372,11 @@ def init_graph():
         props = dict(name=name)
         if not ns.get_node(lbl_raceType, **props):
             ns.create_node(lbl_raceType, **props)
+    # mf
+    for name in ["Dames", "Heren"]:
+        props = dict(name=name)
+        if not ns.get_node(lbl_mf, **props):
+            ns.create_node(lbl_mf, **props)
     return
 
 
@@ -1493,16 +1498,19 @@ def person_list():
     """
     res = ns.get_nodes(lbl_person)
     person_arr = []
-    for node in res:
-        person_obj = Person(person_id=node["nid"])
-        person_dict = dict(
-            nid=person_obj.get_node()["nid"],
-            name=person_obj.get_name(),
-            mf=person_obj.get_mf()["name"],
-            races=len(person_obj.get_races4person())
-        )
-        person_arr.append(person_dict)
-    persons_sorted = sorted(person_arr, key=lambda x: (x["mf"], x["name"]))
+    if isinstance(res, list):
+        for node in res:
+            person_obj = Person(person_id=node["nid"])
+            person_dict = dict(
+                nid=person_obj.get_node()["nid"],
+                name=person_obj.get_name(),
+                mf=person_obj.get_mf()["name"],
+                races=len(person_obj.get_races4person())
+            )
+            person_arr.append(person_dict)
+        persons_sorted = sorted(person_arr, key=lambda x: (x["mf"], x["name"]))
+    else:
+        persons_sorted = []
     return persons_sorted
 
 

@@ -38,6 +38,19 @@ def index():
     return redirect(url_for('main.organization_list'))
 
 
+@main.route('/initenv')
+def initenv():
+    """
+    This method will initialize the environment: register a user, set the default nodes and indeces.
+
+    :return:
+    """
+    mg.init_graph()
+    user = mg.User()
+    user.register("run", "olse")
+    return render_template('index.html')
+
+
 @main.route('/logout')
 @login_required
 def logout():

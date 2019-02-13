@@ -121,7 +121,7 @@ class NeoStore:
         :return: End Node, or False.
         """
         res = self.get_endnodes(start_node, rel_type)
-        if len(res) == 0:
+        if (not res) or len(res) == 0:
             current_app.logger.warning("No end node found for start node ID: {nid} and relation: {rel}"
                                        .format(nid=start_node["nid"], rel=rel_type))
             return False
