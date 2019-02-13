@@ -294,7 +294,8 @@ def race_add(org_id, race_id=None):
         params = {'name': form.name.data}
         try:
             params['type'] = form.raceType.data
-        except NameError:
+        except AttributeError:
+            # In case of Deelname form.raceType does not exist so cannot have an attribute .data
             pass
         if race_id:
             racename = mg.Race(race_id=race_id).edit(**params)
@@ -372,22 +373,7 @@ def participant_add(race_id):
     """
     race = mg.Race(race_id=race_id)
     race_label = race.get_label()
-    if request.method == "POST":
-        # Call form to get input values
-        form = ParticipantAdd()
-        # Add collected info as participant to race.
-        runner_id = form.name.data
-        prev_runner_id = form.prev_runner.data
-        # Create the participant node, connect to person and to race.
-        part = mg.Participant(race_id=race_id, person_id=runner_id, prev_person_id=prev_runner_id)
-        # Collect properties for this participant so that they can be added to the participant node.
-        props = {}
-        for prop in part_config_props:
-            if form.data[prop]:
-                props[prop] = form.data[prop]
-        part.set_props(**props)
-        return redirect(url_for('main.participant_add', race_id=race_id))
-    else:
+    if request.method == "GET":
         # Get method, initialize page.
         org_id = race.get_org_id()
         part_last = race.part_person_last_id()
@@ -406,14 +392,30 @@ def participant_add(race_id):
         if finishers:
             param_dict['finishers'] = finishers
         return render_template('participant_add.html', **param_dict)
+    else:
+        # Call form to get input values
+        form = ParticipantAdd()
+        # Add collected info as participant to race.
+        runner_id = form.name.data
+        prev_runner_id = form.prev_runner.data
+        # Create the participant node, connect to person and to race.
+        part = mg.Participant(race_id=race_id, person_id=runner_id)
+        part.add(prev_person_id=prev_runner_id)
+        # Collect properties for this participant so that they can be added to the participant node.
+        props = {}
+        for prop in part_config_props:
+            if form.data[prop]:
+                props[prop] = form.data[prop]
+        part.set_props(**props)
+        return redirect(url_for('main.participant_add', race_id=race_id))
 
 
 @main.route('/participant/edit/<part_id>', methods=['GET', 'POST'])
 @login_required
 def participant_edit(part_id):
     """
-    This method allows to edit a participant in the race. It is similar to the participant_add, but with sufficient
-    differences to justify a separate method.
+    This method allows to edit participant properties.
+
     :param part_id: NID of the participant. This is sufficient to find Person and Race objects.
     :return:
     """
@@ -424,7 +426,18 @@ def participant_edit(part_id):
     race_id = part.get_race_nid()
     race = mg.Race(race_id=race_id)
     race_label = race.get_label()
-    if request.method == "POST":
+    if request.method == "GET":
+        # Get method, initialize page.
+        org_id = mg.get_org_id(race_id)
+        # Initialize Form, populate with keyword arguments
+        # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
+        part_props = part.get_props()
+        form = ParticipantEdit(**part_props)
+        finishers = race.part_person_seq_list()
+        # There must be finishers, since I can update one of them
+        return render_template('participant_edit.html', form=form, race_id=race_id, finishers=finishers,
+                               race_label=race_label, org_id=org_id, person=person_dict)
+    else:
         # Call form to get input values
         form = ParticipantEdit()
         # Collect properties for this participant
@@ -436,17 +449,6 @@ def participant_edit(part_id):
                 pass
         part.set_props(**props)
         return redirect(url_for('main.participant_add', race_id=race_id))
-    else:
-        # Get method, initialize page.
-        org_id = mg.get_org_id(race_id)
-        # Initialize Form, populate with keyword arguments
-        # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
-        part_props = part.get_props()
-        form = ParticipantEdit(**part_props)
-        finishers = race.part_person_seq_list()
-        # There must be finishers, since I can update one of them
-        return render_template('participant_edit.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, org_id=org_id, person=person_dict)
 
 
 @main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])
@@ -456,25 +458,41 @@ def participant_remove(race_id, pers_id):
     This method will remove the participant from the race and return to the race.
 
     :param race_id: ID of the race. This can be calculated, but it is always available.
-
     :param pers_id: Node ID of the participant in the race.
-
     :return:
     """
+    part = mg.Participant(race_id=race_id, person_id=pers_id)
+    part.delete()
+    return redirect(url_for('main.participant_add', race_id=race_id))
+
+
+@main.route('/participant/up/<race_id>/<pers_id>', methods=['GET', 'POST'])
+@login_required
+def participant_up(race_id, pers_id):
     """
-    person = mg.Person(person_id=pers_id)
-    person_name = person.get()
-    form = ParticipantRemove()
-    race_label = mg.race_label(race_id)
-    finishers = mg.participant_seq_list(race_id, add_points=True)
-    if request.method == "GET":
-        return render_template('participant_remove.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, pers_label=person_name)
-    elif request.method == "POST":
-        if form.submit_ok.data:
+    This method will move the participant up one position and return to the race.
+
+    :param race_id: ID of the race. This can be calculated, but it is always available.
+    :param pers_id: Node ID of the participant in the race.
+    :return:
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
-    part.remove()
+    part.up()
+    return redirect(url_for('main.participant_add', race_id=race_id))
+
+
+@main.route('/participant/down/<race_id>/<pers_id>', methods=['GET', 'POST'])
+@login_required
+def participant_down(race_id, pers_id):
+    """
+    This method will move the participant down one position and return to the race.
+
+    :param race_id: ID of the race. This can be calculated, but it is always available.
+    :param pers_id: Node ID of the participant in the race.
+    :return:
+    """
+    part = mg.Participant(race_id=race_id, person_id=pers_id)
+    part.down()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 

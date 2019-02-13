@@ -8,7 +8,7 @@ import uuid
 from competition.lib.neostructure import *
 from datetime import datetime, date
 from flask import current_app
-from py2neo import Database, Graph, Node, Relationship, NodeMatcher, RelationshipMatch
+from py2neo import Database, Graph, Node, Relationship, NodeMatcher
 
 
 class NeoStore:
@@ -113,23 +113,22 @@ class NeoStore:
         specified then any relation type will do.
         The purpose of the function is to find a single end node. If there are multiple end nodes, then a random one
         is returned and an error message will be displayed.
+        Do not use py2neo RelationshipMatch. It looks like some kind of lazy loading: no value is returned in normal
+        processing, but during debugging values are returned!
 
         :param start_node: Start node.
         :param rel_type: Relation type
         :return: End Node, or False.
         """
-        if not isinstance(start_node, Node):
-            current_app.logger.error("Attribute not type Node (instead type {t})".format(t=type(start_node)))
-            return False
-        rels = RelationshipMatch(self.graph, (start_node, None), r_type=rel_type)
-        if rels.__len__() == 0:
+        res = self.get_endnodes(start_node, rel_type)
+        if len(res) == 0:
             current_app.logger.warning("No end node found for start node ID: {nid} and relation: {rel}"
                                        .format(nid=start_node["nid"], rel=rel_type))
             return False
-        elif rels.__len__() > 1:
+        elif len(res) > 1:
             current_app.logger.warning("More than one end node found for start node ID {nid} and relation {rel},"
                                        " returning first".format(nid=start_node["nid"], rel=rel_type))
-        return rels.first().end_node
+        return res[0]
 
     def get_endnodes(self, start_node=None, rel_type=None):
         """
@@ -141,11 +140,14 @@ class NeoStore:
         :param rel_type: Relation type
         :return: List with End Nodes.
         """
+        if not rel_type:
+            rel_type = ""
         if not isinstance(start_node, Node):
             current_app.logger.error("Attribute not type Node (instead type {t})".format(t=type(start_node)))
             return False
-        node_list = [rel.end_node
-                     for rel in RelationshipMatch(self.graph, (start_node, None), r_type=rel_type)]
+        query = "MATCH (sn {{nid:'{sn_nid}'}})-[:{rel}]->(en) RETURN en".format(sn_nid=start_node["nid"], rel=rel_type)
+        res = self.get_query_data(query)
+        node_list = [node["en"] for node in res]
         # Convert to set to remove duplicate end nodes
         node_set = set(node_list)
         # Then return the result as a list
@@ -251,18 +253,15 @@ class NeoStore:
         :param rel_type: Relation type
         :return: Start Node, or False.
         """
-        if not isinstance(end_node, Node):
-            current_app.logger.error("Attribute not type Node (instead type {t})".format(t=type(end_node)))
-            return False
-        rels = RelationshipMatch(self.graph, (None, end_node), r_type=rel_type)
-        if rels.__len__() == 0:
+        res = self.get_startnodes(end_node, rel_type)
+        if len(res) == 0:
             current_app.logger.warning("No start node found for end node ID: {nid} and relation: {rel}"
                                        .format(nid=end_node["nid"], rel=rel_type))
             return False
-        elif rels.__len__() > 1:
+        elif len(res) > 1:
             current_app.logger.warning("More than one start node found for end node ID {nid} and relation {rel},"
                                        " returning first".format(nid=end_node["nid"], rel=rel_type))
-        return rels.first().start_node
+        return res[0]
 
     def get_startnodes(self, end_node=None, rel_type=None):
         """
@@ -274,11 +273,14 @@ class NeoStore:
         :param rel_type: Relation type
         :return: List with start nodes, or False.
         """
+        if not rel_type:
+            rel_type = ""
         if not isinstance(end_node, Node):
             current_app.logger.error("Attribute not type Node (instead type {t})".format(t=type(end_node)))
             return False
-        node_list = [rel.start_node
-                     for rel in RelationshipMatch(self.graph, (None, end_node), r_type=rel_type)]
+        query = "MATCH (sn)-[:{rel}]->(en {{nid:'{en_nid}'}}) RETURN sn".format(en_nid=end_node["nid"], rel=rel_type)
+        res = self.get_query_data(query)
+        node_list = [node["sn"] for node in res]
         # Convert to set to remove duplicate end nodes
         node_set = set(node_list)
         # Then return the result as a list

@@ -104,22 +104,20 @@ class Participant:
     # List of calculated properties for the participant node.
     calc_props = ["nid", "points", "rel_pos"]
 
-    def __init__(self, part_id=None, race_id=None, person_id=None, prev_person_id=None):
+    def __init__(self, part_id=None, race_id=None, person_id=None):
         """
         A Participant Object is the path: (person)-[:is]->(participant)-[:participates]->(race).
-        If participant id is provided, then find race id and person id.
-        If race id and person id are provided, then try to find participant id. If not successful, then create
-        participant id. The application must call the 'add' method to add this participant in the correct sequence.
-        At the end of initialization, participant node, id, race id and person id are set.
+        If participant id is provided, then set race object and person object.
+        If race id and person id are provided, then find participant node. If participant node does not exist then
+        create it. The application must call the 'add' method and specify the previous runner.
+        At the end of initialization, participant node, race object and person object are set.
         When a participant is added or deleted, then the points for the race will be recalculated.
 
         :param part_id: nid of the participant
         :param race_id: nid of the race
         :param person_id: nid of the person
-        :param prev_person_id: nid of the previous arrival in the race.
         :return: Participant object with participant node and nid, race nid and person nid are set.
         """
-        # Todo: rework classes so that objects are kept, not nids - replace race_nid with race_obj, ...
         self.part_node = None
         if part_id:
             # I have a participant ID, find race and person information
@@ -132,87 +130,128 @@ class Participant:
             self.race = Race(race_id=race_id)
             self.person = Person(person_id=person_id)
             self.part_node = self.get_node()
-            if not self.part_node:
-                current_app.logger.debug("Trying to add previous person to {n}".format(n=self.person.get_name()))
-                # Only add participant if previous participant is defined.
-                self.add(prev_person_id=prev_person_id)
         else:
-            current_app.logger.fatal("Not sufficient input provided.")
+            current_app.logger.fatal("Insufficient input provided.")
             raise ValueError("CannotCreateObject")
         return
 
     def add(self, prev_person_id=None):
         """
-        This method will add the participant in the chain of arrivals. At time of calling, the current participant node
-        does not yet exist.
-        This method is required only if there is already a participant in the race.
-        First action will be determined, then the action will be executed.
-        Is there a previous arrival (prev_pers_id) for this runner? Remember nid for previous arrival. Else this
-        participant is the first arrival.
-        Is there a next arrival for this runner? Remove relation between previous and next, remember next.
-        Now link current participant to previous arrival and to next arrival.
+        This method will add the participant in the chain of arrivals.
+        If there is no previous person, then check for first arrival in race. If found, add first arrival with previous
+        runner this participant.
+        If there is previous person, check if there is next person. If so, remove link and add next person with previous
+        runner  this participant.
+        Create relation between previous person and this participant.
+        Note that I cannot use a race.part_person method, since the current participant is in an invalid state.
 
         :param prev_person_id: nid of previous arrival, or -1 if current participant is first arrival
         :return:
         """
-        # Count total number of arrivals.
-        participants = ns.get_startnodes(end_node=self.race.get_node(), rel_type=participant2race)
-        if participants:
-            # Process required only if there is more than one participant in the race
-            if prev_person_id != "-1":
-                current_app.logger.debug("Previous runner found: {nid}".format(nid=prev_person_id))
-                # There is an arrival before current participant
-                # Find participant nid for this person
-                prev_arrival_obj = Participant(race_id=self.race.get_nid(), person_id=prev_person_id)
-                prev_arrival_nid = prev_arrival_obj.get_id()
-                # This can be linked to a next_arrival. Current participant will break this link
-                next_arrival_nid = prev_arrival_obj.next_runner()
-                if next_arrival_nid:
-                    # Todo - rework to arguments to nodes instead of nids.
-                    ns.remove_relation(start_nid=next_arrival_nid, end_nid=prev_arrival_nid, rel_type="after")
-            else:
-                current_app.logger.debug("First arrival in the race!")
-                # This participant is the first one in the race. Find the next participant.
-                # Be careful, method 'participant_first_id' requires valid chain. So this needs to run before
-                # set_part_race()
-                first_arrival_in_race = self.race.part_person_first_id()
-                prev_arrival_nid = False
-                # Get participant nid for person nid first arrival.
-                next_arrival_obj = Participant(race_id=self.race.get_nid(), person_id=first_arrival_in_race)
-                next_arrival_nid = next_arrival_obj.get_id()
-            # Previous and next arrival have been calculated, create participant and create required relations
-            self.set_part_race()
-            if prev_arrival_nid:
-                self.set_relation(next_id=self.part_node["nid"], prev_id=prev_arrival_nid)
-            if next_arrival_nid:
-                self.set_relation(next_id=next_arrival_nid, prev_id=self.part_node["nid"])
+        if prev_person_id == '-1':
+            # First arrival - was there another first arrival that needs to become second?
+            next_person_id = self.race.part_person_first_id(excl_part_nid=self.get_nid())
+            if isinstance(next_person_id, str):
+                next_part = Participant(race_id=self.race.get_nid(), person_id=next_person_id)
+                next_part.add(prev_person_id=self.get_nid())
         else:
-            # This runner is first one in the race
-            self.set_part_race()
-        # Calculate points after adding participant
-        self.race.calculate_points()
+            prev_part = Participant(race_id=self.race.get_nid(), person_id=prev_person_id)
+            next_part_id = prev_part.next_runner()
+            # Is previous runner not last? Add current runner in-between.
+            if isinstance(next_part_id, str):
+                next_part = Participant(part_id=next_part_id)
+                next_part.remove()
+                next_part.add(prev_person_id=self.get_nid())
+            ns.create_relation(from_node=self.get_node(), rel=participant2participant, to_node=prev_part.get_node())
+        return
+
+    def delete(self):
+        """
+        This method will delete the participant node from the race. If there was a previous runner and a next runner,
+        then connect next runner (arrival) to previous runner.
+        Force remove the current participation node.
+
+        :return:
+        """
+        prev_part_id = self.prev_runner()
+        next_part_id = self.next_runner()
+        ns.remove_node_force(self.get_nid())
+        if isinstance(prev_part_id, str) and isinstance(next_part_id, str):
+            prev_part = Participant(part_id=prev_part_id)
+            next_part = Participant(part_id=next_part_id)
+            next_part.add(prev_person_id=prev_part.get_person_nid())
         return
 
     def remove(self):
         """
-        This method will remove the participant from the race.
-        Recalculate points for the race.
+        This method breaks the connection between the participant and the previous runner. It is an method that should
+        only be called when a previous runner can be removed.
 
         :return:
         """
-        if self.prev_runner() and self.next_runner():
-            # There is a previous and next runner, link them
-            ns.create_relation(from_node=ns.node(self.next_runner()), rel="after", to_node=ns.node(self.prev_runner()))
-        # Remove Participant Node
-        ns.remove_node_force(self.part_node["nid"])
-        # Reset Object
-        self.part_node = None
-        self.race.calculate_points()
+        prev_part_id = self.prev_runner()
+        prev_part = Participant(part_id=prev_part_id)
+        ns.remove_relation(start_node=self.get_node(), rel_type=participant2participant, end_node=prev_part.get_node())
         return
 
-    def get_id(self):
+    def down(self):
         """
-        This method will return the Participant Node ID of this person's participation in the race
+        This method will move the runner one position down in the race. Participant P start position:
+        A<--P<--B<--C, end position A<--B<--P<--C.
+        A and C are optional, B must exist.
+        Find B, call up for B.
+
+        :return:
+        """
+        next_part_nid = self.next_runner()
+        if not isinstance(next_part_nid, str):
+            current_app.logger.error("Method DOWN not possible because no next runner")
+            return
+        next_part = Participant(part_id=next_part_nid)
+        next_part.up()
+        return
+
+    def up(self):
+        """
+        This method will move the runner one position up in the race. Participant P start position:
+        A<--B<--P<--C, end position A<--P<--B<--C.
+        A and C are optional, B must exist.
+
+        :return:
+        """
+        prev_part_nid = self.prev_runner()
+        if not isinstance(prev_part_nid, str):
+            current_app.logger.error("Method UP not possible because no previous runner")
+            return
+        prev_part = Participant(part_id=prev_part_nid)
+        prev2_part_nid = prev_part.prev_runner()
+        next_part_nid = self.next_runner()
+        self.remove()
+        if isinstance(next_part_nid, str):
+            next_part = Participant(part_id=next_part_nid)
+            next_part.remove()
+            next_part.add(prev_person_id=prev_part.get_person_nid())
+        if isinstance(prev2_part_nid, str):
+            prev_part.remove()
+            prev2_part = Participant(part_id=prev2_part_nid)
+            self.add(prev_person_id=prev2_part.get_person_nid())
+        prev_part.add(prev_person_id=self.get_person_nid())
+        return
+
+    def create_node(self):
+        """
+        This method will create a participant node and link it to the person and the race.
+
+        :return: participant node
+        """
+        part_node = ns.create_node(lbl_participant)
+        ns.create_relation(from_node=self.person.get_node(), rel=person2participant, to_node=part_node)
+        ns.create_relation(from_node=part_node, rel=participant2race, to_node=self.race.get_node())
+        return part_node
+
+    def get_nid(self):
+        """
+        This method will return the Participant Node ID of this person's participation in the race.
 
         :return: Participant Node ID (nid)
         """
@@ -220,22 +259,23 @@ class Participant:
 
     def get_node(self):
         """
-        This method will return the participant node.
+        This method will return the participant node for a known person and race. If the participant node does not
+        exist, it will be created.
 
-        :return: Participant node.
+        :return: Participant node, or False if participant node does not exist.
         """
         query = """
             MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
             WHERE pers.nid='{pers_id}' AND race.nid='{race_id}'
             RETURN part
-        """.format(pers_id=self.get_person_nid(), race_id=self.get_race_nid())
+        """.format(pers_id=self.person.get_nid(), race_id=self.race.get_nid())
         res = ns.get_query_data(query)
         if len(res) > 1:
             current_app.logger.error("More than one ({nr}) Participant node for Person {pnid} and Race {rnid}"
-                                     .format(pnid=self.get_person_nid(), rnid=self.get_race_nid(), nr=len(res)))
+                                     .format(pnid=self.person.get_nid(), rnid=self.race.get_nid(), nr=len(res)))
         elif len(res) == 0:
-            return False
-        return res[0]
+            return self.create_node()
+        return res[0]['part']
 
     def get_person_nid(self):
         """
@@ -249,7 +289,6 @@ class Participant:
         """
         This method will get the properties for the node. All properties for the participant node will be collected,
         then the calculated properties (points, rel_pos, ...) will be removed from the dictionary.
-        collected from the participant node and added to the list of properties that are set by the user.
 
         :return:
         """
@@ -269,19 +308,6 @@ class Participant:
         :return: Nid of the race
         """
         return self.race.get_nid()
-
-    def set_part_race(self):
-        """
-        This method will link the person to the race. This is done by creating an Participant Node. This function will
-        not link the participant to the previous or next participant.
-        The method will set the participant node.
-
-        :return: Node ID of the participant node.
-        """
-        self.part_node = ns.create_node("Participant")
-        ns.create_relation(from_node=self.part_node, rel=participant2race, to_node=self.race.get_node())
-        ns.create_relation(from_node=self.person.get_node(), rel=person2participant, to_node=self.part_node)
-        return
 
     def set_props(self, **props):
         """
@@ -303,22 +329,6 @@ class Participant:
                 pass
         return ns.node_update(**props)
 
-    @staticmethod
-    def set_relation(next_id=None, prev_id=None):
-        """
-        This method will connect the next runner with the previous runner. The next runner is after the previous runner.
-
-        :param next_id: Node ID of the next runner
-        :param prev_id: Node ID of the previous runner
-        :return:
-        """
-        prev_part_node = ns.node(prev_id)
-        next_part_node = ns.node(next_id)
-        if neostore.validate_node(prev_part_node, "Participant") \
-                and neostore.validate_node(next_part_node, "Participant"):
-            ns.create_relation(from_node=next_part_node, rel="after", to_node=prev_part_node)
-        return
-
     def prev_runner(self):
         """
         This method will get the node ID for this Participant's previous runner.
@@ -327,6 +337,7 @@ class Participant:
         :return: ID of previous runner participant Node, False if there is no previous runner.
         """
         if not neostore.validate_node(self.part_node, "Participant"):       # pragma: no cover
+            current_app.logger.error("Participant node expected, got {t}".format(t=type(self.part_node)))
             return False
         prev_part = ns.get_endnode(start_node=self.part_node, rel_type=participant2participant)
         if isinstance(prev_part, Node):
@@ -342,6 +353,7 @@ class Participant:
         :return: ID of next runner participant Node, False if there is no next runner.
         """
         if not neostore.validate_node(self.part_node, "Participant"):       # pragma: no cover
+            current_app.logger.error("Participant node expected, got {t}".format(t=type(self.part_node)))
             return False
         next_part = ns.get_startnode(end_node=self.part_node, rel_type=participant2participant)
         if isinstance(next_part, Node):
@@ -651,6 +663,7 @@ class Organization:
         :return: Date node, or False if date not yet defined for the organization.
         """
         date_node = ns.get_endnode(start_node=self.org_node, rel_type=organization2date)
+        # current_app.logger.debug("Date node: {dn}".format(dn=date_node))
         if isinstance(date_node, Node):
             return date_node
         else:
@@ -930,7 +943,7 @@ class Race:
             if props["type"] != self.get_racetype():
                 # Change in race type - handled by organization object.
                 self.org.set_race_type(race_nid=self.get_nid(), race_type=props["type"])
-        return self.race_node["racename"]
+        return self.race_node["name"]
 
     def calculate_points(self):
         """
@@ -1028,21 +1041,27 @@ class Race:
         """
         return self.org.get_org_id()
 
-    def get_participant_seq_list(self):
+    def get_participant_seq_list(self, excl_part_nid=None):
         """
         This method returns the participants for the race in sequence of arrival.
 
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
         :return: List of participant nodes for the race in sequence of arrival.
         """
+        if isinstance(excl_part_nid, str):
+            excl_str = "AND NOT participant.nid = '{part_nid}'".format(part_nid=excl_part_nid)
+        else:
+            excl_str = ""
         query = """
             MATCH race_ptn = (race)<-[:participates]-(participant),
                   participants = (participant)<-[:after*0..]-()
-            WHERE race.nid = '{race_id}'
+            WHERE race.nid = '{race_id}' {excl_str}
             WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
             WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
             UNWIND result_coll as result
             RETURN nodes(result)
-        """.format(race_id=self.get_nid())
+        """.format(race_id=self.get_nid(), excl_str=excl_str)
+        current_app.logger.info(query)
         # Get the result of the query in a recordlist
         res = ns.get_query_data(query)
         if not res:
@@ -1072,15 +1091,16 @@ class Race:
             # race_type not defined for race, so it must be 'Deelname'.
             return False
 
-    def part_person_seq_list(self):
+    def part_person_seq_list(self, excl_part_nid=None):
         """
         This method add person information to the participant sequence list.
 
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
         :return: List of participant items in the race. Each item is a tuple of the person dictionary (from the person
         object) and the participant dictionary (the properties of the participant node). False if there are no
         participants in the list.
         """
-        node_list = self.get_participant_seq_list()
+        node_list = self.get_participant_seq_list(excl_part_nid)
         if isinstance(node_list, list):
             finisher_list = []
             # If there are finishers, then recordlist has one element, which is a nodelist
@@ -1111,13 +1131,14 @@ class Race:
             finisher_list = [eerste]
         return finisher_list
 
-    def part_person_first_id(self):
+    def part_person_first_id(self, excl_part_nid=None):
         """
         This method will get the ID of the first person in the race.
 
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
         :return: Node ID of the first person so far in the race, False if no participant registered for this race.
         """
-        finisher_tuple = self.part_person_seq_list()
+        finisher_tuple = self.part_person_seq_list(excl_part_nid)
         if finisher_tuple:
             (person, part) = finisher_tuple[0]
             person_id = person['nid']

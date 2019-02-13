@@ -60,7 +60,9 @@
             <th>Naam</th>
             <th style="text-align:right">Punten</th>
             {% if current_user.is_authenticated %}
-                <th></th>
+                <th class="shrink"></th>
+                <th class="shrink"></th>
+                <th class="shrink"></th>
             {% endif %}
         </tr>
         {% if finishers is iterable %}
@@ -88,9 +90,24 @@
                 {{ part['points'] }}
             </td>
             {% if current_user.is_authenticated %}
-                <td>
+                <td class="shrink">
+                {% if not loop.first %}
+                    <a href="{{ url_for('main.participant_up', pers_id=person['nid'], race_id=race_id) }}">
+                        <span class="glyphicon glyphicon-arrow-up"></span>
+                    </a>
+                {% endif %}
+                </td>
+                <td class="shrink">
+                {% if not loop.last %}
+                    <a href="{{ url_for('main.participant_down', pers_id=person['nid'], race_id=race_id) }}">
+                        <span class="glyphicon glyphicon-arrow-down"></span>
+                    </a>
+                {% endif %}
+                </td>
+                <td class="shrink">
                     <div data-toggle="modal" data-target="#{{ person['nid'] }}">
-                        <img src="/static/button_cancel.png" width="25" height="25">
+                        <!--img src="/static/button_cancel.png" width="25" height="25"-->
+                        <span class="glyphicon glyphicon-remove-circle"></span>
                     </div>
                     <!-- Modal code -->
                     <div class="modal fade" id="{{ person['nid'] }}" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"

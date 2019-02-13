@@ -16,3 +16,4 @@ a:visited 		{ color: #800080; }
 .logo           { padding: 25px 5px 25px 5px; background-color: #FFFFFF}
 .actions        { padding: 20px; background-color: #33CAFF }
 .overview       { display: inline-block; overflow-x: scroll; overflow-y: scroll;}
+.shrink         { white-space: nowrap; width: 1px; }
