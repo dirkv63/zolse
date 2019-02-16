@@ -653,7 +653,7 @@ class Organization:
         """
         races = [item["race"] for item in get_race_list(self.get_org_id())]
         for race_node in races:
-            race = Race(race_node["nid"])
+            race = Race(race_id=race_node["nid"])
             race.calculate_points()
         return
 
@@ -990,7 +990,7 @@ class Race:
         if isinstance(node_list, list):
             cnt = 0
             for part in node_list:
-                if race_type == def_wedstrijd:
+                if race_type == def_hoofdwedstrijd:
                     points = points_race(cnt)
                 elif race_type == def_nevenwedstrijd:
                     points = points_race(main_race_parts)
@@ -1081,6 +1081,16 @@ class Race:
         :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
         :return: List of participant nodes for the race in sequence of arrival.
         """
+        # Todo: Review update in the cypher query.
+        """
+        MATCH race_ptn = (race)<-[:participates]-(first_part),
+              participants = (first_part)<-[:after*0..]-(last_part)
+        WHERE race.nid = '5ac5b0f1-8ca2-4da2-9516-0a047f00f1b7'
+          AND NOT ()<-[:after]-(first_part)
+          AND NOT (last_part)-[:after]->()
+        RETURN nodes(participants)
+        """
+
         if isinstance(excl_part_nid, str):
             excl_str = "AND NOT participant.nid = '{part_nid}'".format(part_nid=excl_part_nid)
         else:
@@ -1100,7 +1110,7 @@ class Race:
         if len(res) > 0:
             return res[0]["nodes(result)"]
         else:
-            return False
+            return []
 
     def get_racename(self):
         """
@@ -1117,7 +1127,7 @@ class Race:
 
         :return: Race Type: Wedstrijd, Nevenwedstrijd or False if not available.
         """
-        race_type = ns.get_endnode(self.race_node, race2type)
+        race_type = ns.get_endnode(self.get_node(), race2type)
         if isinstance(race_type, Node):
             return race_type["name"]
         else:
