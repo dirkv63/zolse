@@ -440,7 +440,8 @@ def participant_edit(part_id):
     race_label = race.get_label()
     if request.method == "GET":
         # Get method, initialize page.
-        org_id = mg.get_org_id(race_id)
+        org = mg.Organization(race_id=race_id)
+        org_id = org.get_nid()
         # Initialize Form, populate with keyword arguments
         # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
         part_props = part.get_props()
@@ -475,8 +476,7 @@ def participant_remove(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.delete()
-    org_id = mg.get_org_id(race_id)
-    org = mg.Organization(org_id=org_id)
+    org = mg.Organization(race_id=race_id)
     org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
@@ -493,8 +493,7 @@ def participant_up(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.up()
-    org_id = mg.get_org_id(race_id)
-    org = mg.Organization(org_id=org_id)
+    org = mg.Organization(race_id=race_id)
     org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
@@ -511,8 +510,7 @@ def participant_down(race_id, pers_id):
     """
     part = mg.Participant(race_id=race_id, person_id=pers_id)
     part.down()
-    org_id = mg.get_org_id(race_id)
-    org = mg.Organization(org_id=org_id)
+    org = mg.Organization(race_id=race_id)
     org.calculate_points()
     return redirect(url_for('main.participant_add', race_id=race_id))
 

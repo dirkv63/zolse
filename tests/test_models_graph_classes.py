@@ -40,7 +40,7 @@ def organization_delete(org):
     :param org: Organization object.
     :return:
     """
-    mg.organization_delete(org_id=org.get_org_id())
+    mg.organization_delete(org_id=org.get_nid())
     return
 
 
@@ -101,7 +101,7 @@ class TestModelGraphClass(unittest.TestCase):
         )
         org = mg.Organization()
         self.assertTrue(org.add(**org_dict))
-        org_nid = org.get_org_id()
+        org_nid = org.get_nid()
         self.assertTrue(isinstance(org_nid, str))
         self.assertTrue(isinstance(org.get_node(), Node))
         # Test Location
@@ -136,7 +136,7 @@ class TestModelGraphClass(unittest.TestCase):
         org = mg.Organization()
         # Test organization is created.
         self.assertTrue(org.add(**org_dict))
-        org_nid = org.get_org_id()
+        org_nid = org.get_nid()
         self.assertTrue(isinstance(org_nid, str))
         # Now update organization
         # Update organization
@@ -201,7 +201,7 @@ class TestModelGraphClass(unittest.TestCase):
 
     def test_race(self):
         org = organization_create()
-        race1 = mg.Race(org_id=org.get_org_id())
+        race1 = mg.Race(org_id=org.get_nid())
         props = dict(
             name="16k",
             type="Hoofdwedstrijd"
@@ -209,7 +209,7 @@ class TestModelGraphClass(unittest.TestCase):
         race1.add(**props)
         self.assertEqual(race1.get_racetype(), "Hoofdwedstrijd")
         # Create new race, set to 'Hoofdwedstrijd'. Race 1 needs to change to Nevenwedstrijd.
-        race2 = mg.Race(org_id=org.get_org_id())
+        race2 = mg.Race(org_id=org.get_nid())
         props = dict(
             name="14k",
             type="Hoofdwedstrijd"

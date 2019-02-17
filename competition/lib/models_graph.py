@@ -562,17 +562,20 @@ class Person:
 class Organization:
     """
     This class instantiates to an organization.
-    If an organization ID is provided, then the corresponding organization object is created. Otherwise an empty
-    organization object is created.
+    If an organization ID is provided or if a race ID is provided then the corresponding organization object is created.
+    Otherwise an empty organization object is created.
 
     The organization object has the organization node as its property.
 
     :return: Object
     """
-    def __init__(self, org_id=None):
+    def __init__(self, org_id=None, race_id=None):
         self.org_node = None
         if org_id:
             self.org_node = self.get_node(org_id)
+        if race_id:
+            race_node = self.get_node(race_id)
+            self.org_node = ns.get_startnode(end_node=race_node, rel_type=organization2race)
 
     def add(self, **org_dict):
         """
@@ -628,7 +631,7 @@ class Organization:
         """
         # Check Organization name.
         if properties['name'] != self.get_name():
-            node_prop = ns.node_props(nid=self.get_org_id())
+            node_prop = ns.node_props(nid=self.get_nid())
             node_prop["name"] = properties["name"]
             ns.node_update(**node_prop)
         # Check location
@@ -651,7 +654,7 @@ class Organization:
 
         :return:
         """
-        races = [item["race"] for item in get_race_list(self.get_org_id())]
+        races = [item["race"] for item in get_race_list(self.get_nid())]
         for race_node in races:
             race = Race(race_id=race_node["nid"])
             race.calculate_points()
@@ -701,7 +704,7 @@ class Organization:
         """
         return self.org_node["name"]
 
-    def get_org_id(self):
+    def get_nid(self):
         """
         This method will return the nid of the Organization node.
 
@@ -731,7 +734,7 @@ class Organization:
             MATCH (n:Organization)-[:has]->(m:Race)<-[:participates]-(d:Participant)<-[:is]-(p:Person)
             WHERE n.nid = '{org_id}'
             RETURN p
-        """.format(org_id=self.get_org_id())
+        """.format(org_id=self.get_nid())
         return ns.get_query(query)
 
     def get_race_main(self):
@@ -1072,13 +1075,13 @@ class Race:
 
         :return: org_id
         """
-        return self.org.get_org_id()
+        return self.org.get_nid()
 
     def get_participant_seq_list(self, excl_part_nid=None):
         """
         This method returns the participants for the race in sequence of arrival.
 
-        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orphan state.
         :return: List of participant nodes for the race in sequence of arrival.
         """
         # Todo: Review update in the cypher query.
@@ -1138,7 +1141,7 @@ class Race:
         """
         This method add person information to the participant sequence list.
 
-        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orphan state.
         :return: List of participant items in the race. Each item is a tuple of the person dictionary (from the person
         object) and the participant dictionary (the properties of the participant node). False if there are no
         participants in the list.
@@ -1178,7 +1181,7 @@ class Race:
         """
         This method will get the ID of the first person in the race.
 
-        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orpan state.
+        :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orphan state.
         :return: Node ID of the first person so far in the race, False if no participant registered for this race.
         """
         finisher_tuple = self.part_person_seq_list(excl_part_nid)
@@ -1302,18 +1305,6 @@ def organization_delete(org_id=None):
         current_app.logger.debug("All done")
         current_app.logger.info("Organization {lbl} removed.".format(lbl=org_label))
         return True
-
-
-def get_org_id(race_id):
-    """
-    This method will return the organization ID for a Race ID: Organization has Race.
-
-    :param race_id: Node ID of the race.
-    :return: Node ID of the organization.
-    """
-    race_node = ns.node(race_id)
-    org_id = ns.get_startnode(end_node=race_node, rel_type="has")
-    return org_id
 
 
 def get_org_type_node(org_type):
@@ -1652,7 +1643,7 @@ def results_for_mf(mf):
     for nid in result_list:
         params = dict(
             deelname_nr=len(result_list[nid]),
-            deelname_points=len(result_list[nid] * points_per_deelname)
+            deelname_points=len(result_list[nid] * points_deelname)
         )
         deelname_total[nid] = params
     # Merge wedstrijd_total and deelname_total
