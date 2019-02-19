@@ -93,21 +93,21 @@
                 <td class="shrink">
                 {% if not loop.first %}
                     <a href="{{ url_for('main.participant_up', pers_id=person['nid'], race_id=race_id) }}">
-                        <span class="glyphicon glyphicon-arrow-up"></span>
+                        <span class="glyphicon glyphicon-arrow-up" style="color:brown"></span>
                     </a>
                 {% endif %}
                 </td>
                 <td class="shrink">
                 {% if not loop.last %}
                     <a href="{{ url_for('main.participant_down', pers_id=person['nid'], race_id=race_id) }}">
-                        <span class="glyphicon glyphicon-arrow-down"></span>
+                        <span class="glyphicon glyphicon-arrow-down" style="color:brown"></span>
                     </a>
                 {% endif %}
                 </td>
                 <td class="shrink">
                     <div data-toggle="modal" data-target="#{{ person['nid'] }}">
                         <!--img src="/static/button_cancel.png" width="25" height="25"-->
-                        <span class="glyphicon glyphicon-remove-circle"></span>
+                        <span class="glyphicon glyphicon-remove-circle" style="color:brown"></span>
                     </div>
                     <!-- Modal code -->
                     <div class="modal fade" id="{{ person['nid'] }}" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
@@ -169,10 +169,10 @@
         </tr>
         {% for row in races %}
         <tr>
-            <td>{{ loop.index }}</td>
+            <td>{{ loop.index }}.</td>
             <td>
                 <a href="{{ url_for('main.participant_list',  race_id=row.race.nid) }}">
-                    {{ row.race.racename }}
+                    {{ row.race.name }}
                 </a>
             </td>
             <td>

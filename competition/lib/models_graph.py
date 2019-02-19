@@ -1,4 +1,5 @@
 import datetime
+from collections import defaultdict
 from competition import lm
 from competition.lib import my_env, neostore
 from competition.lib.neostructure import *
@@ -30,7 +31,7 @@ class User(UserMixin):
         if user_id:
             self.user_node = ns.node(user_id)
         else:
-            self.user_node = "NotDefined"
+            self.user_node = None
 
     def __repr__(self):
         return "<User: {user}>".format(user=self.user_node["name"])
@@ -46,13 +47,9 @@ class User(UserMixin):
         label = "User"
         props = dict(name=username)
         user_node = ns.get_node(label, **props)
-        if user_node:
-            try:
-                self.user_node = user_node
-                return self.user_node
-            except KeyError:
-                # Password not defined for user, return False
-                return False
+        if isinstance(user_node, Node):
+            self.user_node = user_node
+            return self.user_node
         else:
             # User not defined
             return False
@@ -153,7 +150,7 @@ class Participant:
             next_person_id = self.race.part_person_first_id(excl_part_nid=self.get_nid())
             if isinstance(next_person_id, str):
                 next_part = Participant(race_id=self.race.get_nid(), person_id=next_person_id)
-                next_part.add(prev_person_id=self.get_nid())
+                next_part.add(prev_person_id=self.get_person_nid())
         else:
             prev_part = Participant(race_id=self.race.get_nid(), person_id=prev_person_id)
             next_part_id = prev_part.next_runner()
@@ -161,7 +158,7 @@ class Participant:
             if isinstance(next_part_id, str):
                 next_part = Participant(part_id=next_part_id)
                 next_part.remove()
-                next_part.add(prev_person_id=self.get_nid())
+                next_part.add(prev_person_id=self.get_person_nid())
             ns.create_relation(from_node=self.get_node(), rel=participant2participant, to_node=prev_part.get_node())
         return
 
@@ -248,6 +245,14 @@ class Participant:
         ns.create_relation(from_node=self.person.get_node(), rel=person2participant, to_node=part_node)
         ns.create_relation(from_node=part_node, rel=participant2race, to_node=self.race.get_node())
         return part_node
+
+    def get_mf_value(self):
+        """
+        This method returns the mf value for the participant.
+
+        :return:
+        """
+        return self.person.get_mf_value()
 
     def get_nid(self):
         """
@@ -671,7 +676,7 @@ class Organization:
         city = self.get_location()["city"]
         ds = self.get_date()
         ds_obj = my_env.datestr2date(ds["key"])
-        label = "{org_name} ({city}, {date})".format(org_name=org_name, city=city, date=ds_obj.strftime("%d-%m-%Y"))
+        label = "{org_name} {city}, {date}".format(org_name=org_name, city=city, date=ds_obj.strftime("%d-%m-%Y"))
         return label
 
     def get_location(self):
@@ -975,38 +980,91 @@ class Race:
                 self.org.calculate_points()
         return self.race_node["name"]
 
+    def calculate_hoofdwedstrijd(self):
+        """
+        This method will set points for every participant in the hoofdwedstrijd.
+
+        :return:
+        """
+        cnt = dict(vrouw=0, man=0)
+        node_list = self.get_participant_seq_list()
+        if node_list:
+            for part_node in node_list:
+                part = Participant(part_id=part_node["nid"])
+                mf = part.get_mf_value()
+                cnt[mf] += 1
+                points = points_race(cnt[mf])
+                rel_pos = cnt[mf]
+                # Set points for participant
+                props = dict(nid=part.get_nid(), points=points, rel_pos=rel_pos)
+                ns.node_set_attribs(**props)
+        return
+
+    def calculate_nevenwedstrijd(self):
+        """
+        This method sets points for every participant in a nevenwedstrijd.
+
+        :return:
+        """
+        main_race_node = self.org.get_race_main()
+        if isinstance(main_race_node, Node):
+            main_race = Race(race_id=main_race_node["nid"])
+            d_parts = main_race.get_participant_cat(cat="Dames")
+            m_parts = main_race.get_participant_cat(cat="Heren")
+        else:
+            d_parts = 0
+            m_parts = 0
+        d_rel_pos = d_parts + 1
+        m_rel_pos = m_parts + 1
+        d_points = points_race(d_rel_pos)
+        m_points = points_race(m_rel_pos)
+        node_list = self.get_participant_seq_list()
+        if node_list:
+            for part_node in node_list:
+                part = Participant(part_id=part_node["nid"])
+                mf = part.get_mf_value()
+                if mf == "man":
+                    points = m_points
+                    rel_pos = m_rel_pos
+                else:
+                    points = d_points
+                    rel_pos = d_rel_pos
+                # Set points for participant
+                props = dict(nid=part.get_nid(), points=points, rel_pos=rel_pos)
+                ns.node_set_attribs(**props)
+        return
+
+    def calculate_deelname(self):
+        """
+        This method sets the deelname points for all participants in this race.
+
+        :return:
+        """
+        node_list = self.get_participant_seq_list()
+        cnt = 0
+        if node_list:
+            for part_node in node_list:
+                part = Participant(part_id=part_node["nid"])
+                cnt += 1
+                points = points_deelname
+                rel_pos = cnt
+                props = dict(nid=part.get_nid(), points=points, rel_pos=rel_pos)
+                ns.node_set_attribs(**props)
+        return
+
     def calculate_points(self):
         """
-        This method will calculate the points for the race. Races can be of 3 different types: Wedstrijd, Nevenwedstrijd
-        or deelname.
+        This method will call the function to calculate the points for the race depending on the race type.
 
         :return: All participants in the race have the correct points and position.
         """
         race_type = self.get_racetype()
-        node_list = self.get_participant_seq_list()
-        main_race_node = self.org.get_race_main()
-        if isinstance(main_race_node, Node):
-            main_race = Race(race_id=main_race_node["nid"])
-            main_race_parts = len(main_race.get_participant_seq_list())
+        if race_type == def_hoofdwedstrijd:
+            self.calculate_hoofdwedstrijd()
+        elif race_type == def_nevenwedstrijd:
+            self.calculate_nevenwedstrijd()
         else:
-            main_race_parts = 0
-        if isinstance(node_list, list):
-            cnt = 0
-            for part in node_list:
-                if race_type == def_hoofdwedstrijd:
-                    points = points_race(cnt)
-                elif race_type == def_nevenwedstrijd:
-                    points = points_race(main_race_parts)
-                elif race_type == def_deelname:
-                    points = points_deelname
-                else:
-                    current_app.logger.error("Race Type {rt} not defined.".format(rt=race_type))
-                    points = 20
-                cnt += 1
-                rel_pos = cnt
-                # Set points for participant - Participant node is identified on nid.
-                props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
-                ns.node_set_attribs(**props)
+            self.calculate_deelname()
         return
 
     def get_next_part(self):
@@ -1034,8 +1092,8 @@ class Race:
 
         :return: Race name and organization, for race 'stand-alone' usage.
         """
-        org_name = self.org.get_name()
-        return "{race_name} ({org_name})".format(race_name=self.get_racename(), org_name=org_name)
+        org_name = self.org.get_label()
+        return "{race_name} ({org_name})".format(race_name=self.get_name(), org_name=org_name)
 
     def get_mf_value(self):
         """
@@ -1077,6 +1135,23 @@ class Race:
         """
         return self.org.get_nid()
 
+    def get_participant_cat(self, cat):
+        """
+        This method calculates the number of participants for this race.
+
+        :param cat: dames/heren
+        :return: Number of participants for this category.
+        """
+        query = """
+            MATCH (race:Race)<-[:participates]-(:Participant)<-[:is]-(person:Person)-[:mf]->(mf:MF)
+            WHERE race.nid = '{race_nid}'
+              AND mf.name = '{cat}'
+            RETURN count(person) as cnt
+        """.format(race_nid=self.get_nid(), cat=cat)
+        current_app.logger.info(query)
+        res = ns.get_query_data(query)
+        return res[0]["cnt"]
+
     def get_participant_seq_list(self, excl_part_nid=None):
         """
         This method returns the participants for the race in sequence of arrival.
@@ -1084,44 +1159,36 @@ class Race:
         :param excl_part_nid: Participant nid that needs to be excluded from query, since it is in orphan state.
         :return: List of participant nodes for the race in sequence of arrival.
         """
-        # Todo: Review update in the cypher query.
+        # Todo: Remove cypher query below if this is working.
         """
-        MATCH race_ptn = (race)<-[:participates]-(first_part),
-              participants = (first_part)<-[:after*0..]-(last_part)
-        WHERE race.nid = '5ac5b0f1-8ca2-4da2-9516-0a047f00f1b7'
-          AND NOT ()<-[:after]-(first_part)
-          AND NOT (last_part)-[:after]->()
-        RETURN nodes(participants)
-        """
-
-        if isinstance(excl_part_nid, str):
-            excl_str = "AND NOT participant.nid = '{part_nid}'".format(part_nid=excl_part_nid)
-        else:
-            excl_str = ""
-        query = """
-            MATCH race_ptn = (race)<-[:participates]-(participant),
+                    MATCH race_ptn = (race)<-[:participates]-(participant),
                   participants = (participant)<-[:after*0..]-()
             WHERE race.nid = '{race_id}' {excl_str}
             WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
             WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
             UNWIND result_coll as result
             RETURN nodes(result)
+
+        """
+        if isinstance(excl_part_nid, str):
+            excl_str = "AND NOT first_part.nid = '{part_nid}'".format(part_nid=excl_part_nid)
+        else:
+            excl_str = ""
+        query = """
+                MATCH race_ptn = (race)<-[:participates]-(first_part),
+                      participants = (first_part)<-[:after*0..]-(last_part)
+                WHERE race.nid = '{race_id}' {excl_str}
+                  AND NOT (first_part)-[:after]->()
+                  AND NOT ()-[:after]->(last_part)
+                RETURN nodes(participants)
         """.format(race_id=self.get_nid(), excl_str=excl_str)
         current_app.logger.info(query)
         # Get the result of the query in a recordlist
         res = ns.get_query_data(query)
         if len(res) > 0:
-            return res[0]["nodes(result)"]
+            return res[0]["nodes(participants)"]
         else:
             return []
-
-    def get_racename(self):
-        """
-        This method get the display name of the race.
-
-        :return: Display name (racename) for the race.
-        """
-        return self.race_node["name"]
 
     def get_racetype(self):
         """
@@ -1574,6 +1641,8 @@ def points_race(pos):
     :param pos: Position in the race
     :return: Points associated for this position. Minimum is 15 points.
     """
+    if pos > 0:
+        pos = pos - 1
     racepoints = [50, 45, 40, 35]
     try:
         points = racepoints[pos]
@@ -1613,15 +1682,7 @@ def results_for_mf(mf):
     :return: Sorted list with tuples (name, points, number of races, nid for person).
     """
     # Wedstrijden
-    res_wedstrijd = participation_points(mf=mf, orgtype=def_wedstrijd)
-    result_list = {}
-    for df_line in res_wedstrijd.iterrows():
-        rec = df_line[1].to_dict()
-        try:
-            result_list[rec["person_nid"]].append(rec["points"])
-        except KeyError:
-            result_list[rec["person_nid"]] = [rec["points"]]
-    # Then collect totals for every participant
+    result_list = participation_points(mf=mf, orgtype=def_wedstrijd)
     wedstrijd_total = {}
     for nid in result_list:
         params = dict(
@@ -1630,15 +1691,7 @@ def results_for_mf(mf):
         )
         wedstrijd_total[nid] = params
     # Deelname
-    res_deelname = participation_points(mf=mf, orgtype=def_deelname)
-    result_list = {}
-    for df_line in res_deelname.iterrows():
-        rec = df_line[1].to_dict()
-        try:
-            result_list[rec["person_nid"]].append(rec["points"])
-        except KeyError:
-            result_list[rec["person_nid"]] = [rec["points"]]
-    # Then collect totals for every participant
+    result_list = participation_points(mf=mf, orgtype=def_deelname)
     deelname_total = {}
     for nid in result_list:
         params = dict(
@@ -1672,7 +1725,7 @@ def results_for_mf(mf):
     for nid in wedstrijd_total:
         person = Person(nid)
         result_total.append([person.get_name(), wedstrijd_total[nid]["points"], wedstrijd_total[nid]["nr"], nid])
-    result_sorted = sorted(result_total, key=lambda x: (x[5], -x[1]))
+    result_sorted = sorted(result_total, key=lambda x: -x[1])
     return result_sorted
 
 
@@ -1683,8 +1736,8 @@ def participation_points(mf, orgtype):
 
     :param mf: Dames / Heren
     :param orgtype: Wedstrijd / Deelname
-    :return: A dataframe with records having the person_nid and points for each participation for mf and orgtype and for
-    every race.
+    :return: A dictionary with key person_nid and value a list of participation points for this person and this
+    organization type
     """
     query = """
         MATCH (person:Person)-[:mf]->(mf:MF  {name: {mf}}),
@@ -1693,8 +1746,11 @@ def participation_points(mf, orgtype):
               (org)-[:type]->(orgtype:OrgType {name: {orgtype}})
         RETURN person.nid as person_nid, part.points as points
     """
-    res = ns.get_query_df(query, mf=mf, orgtype=orgtype)
-    return res
+    res = ns.get_query_data(query, mf=mf, orgtype=orgtype)
+    result_list = defaultdict(list)
+    for rec in res:
+        result_list[rec["person_nid"]].append(rec["points"])
+    return result_list
 
 
 def remove_node_force(node_id):

@@ -4,9 +4,7 @@
 {% block page_content %}
 <div class="row">
     <div class="col-lg-5">
-        <a href="{{ url_for('main.result_select_cat', mf=mf) }}">
-            <h1>{{ cat }}</h1>
-        </a>
+        <h1>{{ mf }}</h1>
         <table class="table table-hover">
             <tr>
                 <th></th>
@@ -16,9 +14,9 @@
             </tr>
             {% for row in result_set %}
             <tr>
-                <td>{{ loop.index }}</td>
+                <td>{{ loop.index }}.</td>
                 <td>{% if row[2] > 6 %}<b>{% endif %}
-                    <a href="{{ url_for('main.results', mf=mf, cat=cat_nid, person_id=row[3]) }}">
+                    <a href="{{ url_for('main.results', mf=mf, person_id=row[3]) }}">
                         {{ row[0] }}
                     </a>
                     {% if row[2] > 6 %}</b>{% endif %}

@@ -197,7 +197,7 @@ class TestModelGraphClass(unittest.TestCase):
 
     def test_participation_points(self):
         res = mg.participation_points(mf="Heren", orgtype="Wedstrijd")
-        self.assertTrue(isinstance(res, DataFrame))
+        self.assertTrue(isinstance(res, dict))
 
     def test_race(self):
         org = organization_create()

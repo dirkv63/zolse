@@ -1,13 +1,8 @@
-# import competition.models_graph as mg
-# import logging
-# import datetime
 from competition.lib import my_env, models_graph as mg
-# from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
 from . import main
-# from ..models_sql import User
 
 # The participant properties that can be set (not calculated)
 """
@@ -16,6 +11,25 @@ released for pip and it may not be required at all: the data may not always be a
 """
 # part_config_props = ["pos", "remark"]
 part_config_props = ["pos"]
+
+
+@main.route('/')
+def index():
+    # return render_template('index.html')
+    return redirect(url_for('main.organization_list'))
+
+
+# @main.route('/initenv')
+def initenv():
+    """
+    This method will initialize the environment: register a user, set the default nodes and indeces.
+
+    :return:
+    """
+    mg.init_graph()
+    user = mg.User()
+    user.register("run", "olse")
+    return render_template('index.html')
 
 
 @main.route('/login', methods=['GET', 'POST'])
@@ -30,25 +44,6 @@ def login():
         login_user(user, remember=form.remember_me.data)
         return redirect(request.args.get('next') or url_for('main.index'))
     return render_template('login.html', form=form)
-
-
-@main.route('/')
-def index():
-    # return render_template('index.html')
-    return redirect(url_for('main.organization_list'))
-
-
-@main.route('/initenv')
-def initenv():
-    """
-    This method will initialize the environment: register a user, set the default nodes and indeces.
-
-    :return:
-    """
-    mg.init_graph()
-    user = mg.User()
-    user.register("run", "olse")
-    return render_template('index.html')
 
 
 @main.route('/logout')
@@ -73,7 +68,7 @@ def location_add():
             if mg.Location(loc).add():
                 flash("{lbl} toegevoegd als locatie".format(lbl=loc), "success")
             else:
-                flash("{lbl} bestaaat reeds".format(lbl=loc), "warning")
+                flash("{lbl} bestaat reeds".format(lbl=loc), "warning")
         else:
             flash("Form did not validate on submit, how did this happen?", "error")
         return redirect(ref or url_for('main.index'))
@@ -295,7 +290,6 @@ def race_add(org_id, race_id=None):
             form.name.data = race.get_name()
             if org_type == "Wedstrijd":
                 form.raceType.data = race.get_racetype()
-            race_add_attribs["racename"] = race.get_racename()
         race_add_attribs['form'] = form
         return render_template('race_list.html', **race_add_attribs)
     else:
@@ -307,11 +301,9 @@ def race_add(org_id, race_id=None):
             # In case of Deelname form.raceType does not exist so cannot have an attribute .data
             pass
         if race_id:
-            racename = mg.Race(race_id=race_id).edit(**params)
-            flash("Race {rl} modified in Organization".format(rl=racename), "success")
+            mg.Race(race_id=race_id).edit(**params)
         else:
-            racename = mg.Race(org_id).add(**params)
-            flash("Race {rl} created in Organization".format(rl=racename), "success")
+            mg.Race(org_id).add(**params)
         # Form validated successfully, clear fields!
         return redirect(url_for('main.race_list', org_id=org_id))
 
@@ -515,21 +507,12 @@ def participant_down(race_id, pers_id):
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 
-@main.route('/result_select_cat/<mf>', methods=['GET'])
-def result_select_cat(mf):
-    params = dict(
-        mf=mf
-    )
-    return render_template("result_select_cat.html", **params)
-
-
-@main.route('/result/<mf>/<cat>/', methods=['GET'])
-@main.route('/result/<mf>/<cat>/<person_id>')
-def results(mf, cat, person_id=None):
+@main.route('/result/<mf>', methods=['GET'])
+@main.route('/result/<mf>/<person_id>')
+def results(mf, person_id=None):
     result_set = mg.results_for_mf(mf=mf)
     param_dict = dict(
         result_set=result_set,
-        cat_nid=cat,
         mf=mf
     )
     if person_id:
