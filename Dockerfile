@@ -12,7 +12,7 @@ COPY requirements.txt requirements.txt
 # gcc, musl-dev and linux-headers are required for psutil
 # alpine-sdk is required for pandas
 RUN apk update
-RUN apk add --no-cache --virtual .build-deps gcc musl-dev linux-headers alpine-sdk
+RUN apk add --no-cache --virtual .build-deps gcc musl-dev linux-headers alpine-sdk libffi-dev
 RUN python -m venv zolse
 RUN zolse/bin/pip install --upgrade pip
 RUN zolse/bin/pip install -r requirements.txt

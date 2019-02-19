@@ -3,7 +3,6 @@ Flask-Bootstrap
 Flask-Login
 Flask-WTF
 Jinja2
-pandas
 py2neo
 python-dateutil
 python-dotenv
