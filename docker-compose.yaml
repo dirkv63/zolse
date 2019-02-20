@@ -10,10 +10,10 @@ services:
       - "5000:18031"
     environment:
       - LOGDIR=/logs
-        LOGLEVEL=info
-        NEO4J_USER=neo4j
-        NEO4J_PWD=neo4jneo4j
-        NEO4J_DB=zolse18.db
+      - LOGLEVEL=info
+      - NEO4J_USER=neo4j
+      - NEO4J_PWD=neo4j
+      - NEO4J_DB=zolse18.db
       - NEO4J_HOST=neodb
     networks:
       - zolse-net
