@@ -3,6 +3,7 @@ FROM python:3.7-alpine
 RUN adduser -D dirk
 
 WORKDIR /home/zolse
+RUN mkdir /logs
 
 COPY requirements.txt requirements.txt
 # Alpine Linux requires build environment

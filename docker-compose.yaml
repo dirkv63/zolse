@@ -9,9 +9,16 @@ services:
     ports:
       - "5000:18031"
     environment:
+      - LOGDIR=/logs
+        LOGLEVEL=info
+        NEO4J_USER=neo4j
+        NEO4J_PWD=neo4jneo4j
+        NEO4J_DB=zolse18.db
       - NEO4J_HOST=neodb
     networks:
       - zolse-net
+    volumes:
+      - "zolse:/logs"
   neodb:
     image: neo4j:3.5.3
     volumes:
