@@ -1,26 +1,27 @@
 version: "3"
 services:
   web:
-    image: dirkv63/zolse:v2
+    image: dirkv63/zolse:v1
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
     ports:
-      - "5000:19031"
+      - "5000:18031"
     environment:
       - NEO4J_HOST=neodb
     networks:
       - zolse-net
   neodb:
-    image: neo4j:3.3
+    image: neo4j:3.5.3
     volumes:
       - "zolse:/data"
       - "zolse:/logs"
     networks:
       - zolse-net
     environment:
-      - NEO4J_dbms_active__database=wolse19.db
+      - NEO4J_dbms_active__database=zolse18.db
+      - NEO4J_AUTH=neo4j/neo4jneo4j
 networks:
   zolse-net:
 volumes:
