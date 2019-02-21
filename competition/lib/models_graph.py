@@ -72,6 +72,20 @@ class User(UserMixin):
             user_node = ns.create_node(label, **props)
             return user_node["nid"]
 
+    def set_password(self, password):
+        """
+        This method will set the password for the user.
+
+        :param password:
+        :return:
+        """
+        props = dict(
+            nid=self.get_id(),
+            pwd=generate_password_hash(password)
+        )
+        ns.node_set_attribs(**props)
+        return
+
     def validate_password(self, name, pwd):
         """
         Find the user. If the user exists, verify the password. If the passwords match, return nid of the User node.
@@ -1413,6 +1427,25 @@ def get_race_list_attribs(org_id):
         remove_org=remove_org
     )
     return params
+
+
+def initialize_neo():
+    """
+    This method checks for an empty database. If so, then default user will be initialized and mandatory nodes created.
+    The database structure will be defined.
+
+    :return:
+    """
+    nodes = ns.get_nodes()
+    if isinstance(nodes, list):
+        current_app.logger.info("Nodes found, no need to initialize.")
+        return
+    else:
+        current_app.logger.info("Initialize environment.")
+        init_graph()
+        user = User()
+        user.register("run", "olse")
+        return
 
 
 def init_graph():

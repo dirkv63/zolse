@@ -20,19 +20,6 @@ def index():
     return redirect(url_for('main.organization_list'))
 
 
-@main.route('/initenv')
-def initenv():
-    """
-    This method will initialize the environment: register a user, set the default nodes and indeces.
-
-    :return:
-    """
-    mg.init_graph()
-    user = mg.User()
-    user.register("run", "olse")
-    return render_template('index.html')
-
-
 @main.route('/login', methods=['GET', 'POST'])
 def login():
     form = Login()
@@ -68,6 +55,18 @@ def pwd_update():
         flash('Password changed!', 'info')
         return redirect(url_for('main.index'))
     return render_template('login.html', form=form, hdr='Change Password')
+
+
+@main.route('/initenv')
+def initenv():
+    """
+    This method will initialize the environment: register a user, set the default nodes and indeces.
+    This will be done on an empty database only.
+
+    :return:
+    """
+    mg.initialize_neo()
+    return render_template('index.html')
 
 
 @main.route('/location/add', methods=['GET', 'POST'])
