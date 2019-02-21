@@ -1195,7 +1195,7 @@ class Race:
         This method will return the race type (Wedstrijd, Nevenwedstrijd). If no racetype is defined, then organization
         type must be 'Deelname', for which no specific racetype is required.
 
-        :return: Race Type: Wedstrijd, Nevenwedstrijd or False if not available.
+        :return: Race Type: Hoofdwedstrijd, Nevenwedstrijd or False if not available.
         """
         race_type = ns.get_endnode(self.get_node(), race2type)
         if isinstance(race_type, Node):

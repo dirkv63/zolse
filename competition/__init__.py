@@ -30,6 +30,9 @@ def create_app(config_class=Config):
     bootstrap.init_app(app)
     lm.init_app(app)
 
+    # add Jinja Filters
+    app.jinja_env.filters['env_override'] = my_env.env_override
+
     # import blueprints
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)

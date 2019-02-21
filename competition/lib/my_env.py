@@ -133,41 +133,13 @@ def datestr2date(datestr):
     return date_obj
 
 
-class LoopInfo:
+# Jinja filters
+def env_override(value, key):
     """
-    This class handles a FOR loop information handling.
+    This filter gets an environment variable for usage in Jinja template.
+
+    :param key:  OS Environment variable to get
+    :param value: Default value if OS Environment variable cannot be found.
+    :return: value of the OS Environment variable, or default value if not found.
     """
-
-    def __init__(self, attribname, triggercnt):
-        """
-        Initialization of FOR loop information handling. Start message is printed for attribname. Information progress
-        message will be printed for every triggercnt iterations.
-        :param attribname:
-        :param triggercnt:
-        :return:
-        """
-        self.rec_cnt = 0
-        self.loop_cnt = 0
-        self.attribname = attribname
-        self.triggercnt = triggercnt
-        curr_time = datetime.datetime.now().strftime("%H:%M:%S")
-        print("{0} - Start working on {1}".format(curr_time, str(self.attribname)))
-        return
-
-    def info_loop(self):
-        """
-        Check number of iterations. Print message if number of iterations greater or equal than triggercnt.
-        :return:
-        """
-        self.rec_cnt += 1
-        self.loop_cnt += 1
-        if self.loop_cnt >= self.triggercnt:
-            curr_time = datetime.datetime.now().strftime("%H:%M:%S")
-            print("{0} - {1} {2} handled".format(curr_time, str(self.rec_cnt), str(self.attribname)))
-            self.loop_cnt = 0
-        return
-
-    def end_loop(self):
-        curr_time = datetime.datetime.now().strftime("%H:%M:%S")
-        print("{0} - {1} {2} handled - End.\n".format(curr_time, str(self.rec_cnt), str(self.attribname)))
-        return
+    return os.getenv(key, value)

@@ -1,4 +1,5 @@
 from competition.lib import my_env, models_graph as mg
+from competition.lib.neostructure import def_nevenwedstrijd
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
@@ -290,6 +291,10 @@ def race_add(org_id, race_id=None):
             form.name.data = race.get_name()
             if org_type == "Wedstrijd":
                 form.raceType.data = race.get_racetype()
+        else:
+            # New race: set type to Nevenwedstrijd if there is a hoofdwedstrijd (default) already.
+            if org.get_race_main():
+                form.raceType.data = def_nevenwedstrijd
         race_add_attribs['form'] = form
         return render_template('race_list.html', **race_add_attribs)
     else:

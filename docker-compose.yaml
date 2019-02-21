@@ -15,6 +15,7 @@ services:
       - NEO4J_PWD=neo4j
       - NEO4J_DB=zolse18.db
       - NEO4J_HOST=neodb
+      - VERSIONLABEL=OLSE Zomer 2018
     networks:
       - zolse-net
     volumes:
