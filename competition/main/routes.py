@@ -19,7 +19,7 @@ def index():
     return redirect(url_for('main.organization_list'))
 
 
-# @main.route('/initenv')
+@main.route('/initenv')
 def initenv():
     """
     This method will initialize the environment: register a user, set the default nodes and indeces.
