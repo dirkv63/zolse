@@ -1,7 +1,7 @@
 from competition.lib import my_env, models_graph as mg
 from competition.lib.neostructure import def_nevenwedstrijd
 from flask import render_template, flash, current_app, redirect, url_for, request
-from flask_login import login_required, login_user, logout_user
+from flask_login import login_required, login_user, logout_user, current_user
 from .forms import *
 from . import main
 
@@ -44,7 +44,7 @@ def login():
             return redirect(url_for('main.login', **request.args))
         login_user(user, remember=form.remember_me.data)
         return redirect(request.args.get('next') or url_for('main.index'))
-    return render_template('login.html', form=form)
+    return render_template('login.html', form=form, hdr="Login")
 
 
 @main.route('/logout')
@@ -52,6 +52,22 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('main.index'))
+
+
+@main.route('/pwdupdate', methods=['GET', 'POST'])
+@login_required
+def pwd_update():
+    form = PwdUpdate()
+    if form.validate_on_submit():
+        user = current_user
+        if not user.validate_password(name=user.get_name(), pwd=form.current_pwd.data):
+            flash('Password update not successful', 'error')
+            return redirect(url_for('main.pwd_update'))
+        # User and password is OK, so update the password
+        user.set_password(form.new_pwd.data)
+        flash('Password changed!', 'info')
+        return redirect(url_for('main.index'))
+    return render_template('login.html', form=form, hdr='Change Password')
 
 
 @main.route('/location/add', methods=['GET', 'POST'])

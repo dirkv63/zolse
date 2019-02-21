@@ -57,6 +57,9 @@ class User(UserMixin):
     def get_id(self):
         return self.user_node["nid"]
 
+    def get_name(self):
+        return self.user_node["name"]
+
     def register(self, username, password):
         if self.find(username):
             return False
