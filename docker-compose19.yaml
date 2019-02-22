@@ -7,15 +7,15 @@ services:
       restart_policy:
         condition: on-failure
     ports:
-      - "18031:5000"
+      - "19031:5000"
     environment:
       - LOGDIR=/logs
       - LOGLEVEL=info
       - NEO4J_USER=neo4j
       - NEO4J_PWD=neo4jneo4j
-      - NEO4J_DB=zolse18.db
+      - NEO4J_DB=zolse19.db
       - NEO4J_HOST=neodb
-      - VERSIONLABEL=OLSE Zomer 2018
+      - VERSIONLABEL=OLSE Zomer 2019
     networks:
       - olse-net
     volumes:
@@ -28,7 +28,7 @@ services:
     networks:
       - olse-net
     environment:
-      - NEO4J_dbms_active__database=zolse18.db
+      - NEO4J_dbms_active__database=zolse19.db
       - NEO4J_AUTH=neo4j/neo4jneo4j
 networks:
   olse-net:
