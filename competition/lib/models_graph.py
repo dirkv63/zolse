@@ -1699,7 +1699,7 @@ def points_sum(point_list):
     """
     # Todo: points for 'deelname' should be calculated separately and in full
     nr_races = 7
-    add_points_per_race = 5
+    add_points_per_race = 10
     max_list = sorted(point_list)[-nr_races:]
     if len(point_list) > nr_races:
         add_points = (len(point_list) - nr_races) * add_points_per_race
